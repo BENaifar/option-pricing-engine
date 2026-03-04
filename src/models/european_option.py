@@ -1,4 +1,4 @@
-from option import Option
+from src.models.option import Option
 
 class EuropeanOption(Option):
     def __init__(self, S0:float, K:float, T:float, sigma:float, r:float, option_type='call'):

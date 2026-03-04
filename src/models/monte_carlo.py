@@ -1,4 +1,4 @@
-from option import Option
+from src.models.option import Option
 import numpy as np
 
 class MonteCarlo:
