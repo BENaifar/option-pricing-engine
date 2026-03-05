@@ -18,11 +18,11 @@ class BlackScholes:
         d1, d2 = self._d1_d2()
 
         if (self.option.option_type == "call"):
-            C = self.option.spot * norm.cdf(d1) - self.option.strike * np.exp((-self.option.risk_free_rate) * self.option.maturity) * norm.cdf(d2)
-            return C
+            price = self.option.spot * norm.cdf(d1) - self.option.strike * np.exp((-self.option.risk_free_rate) * self.option.maturity) * norm.cdf(d2)
+            return price
         else:
-            C = self.option.strike * np.exp((-self.option.risk_free_rate) * self.option.maturity) * norm.cdf(-d2) - self.option.spot * norm.cdf(-d1)
-            return C
+            price = self.option.strike * np.exp((-self.option.risk_free_rate) * self.option.maturity) * norm.cdf(-d2) - self.option.spot * norm.cdf(-d1)
+            return price
         
     def delta(self):
         d1, _ = self._d1_d2()
@@ -48,30 +48,30 @@ class BlackScholes:
     def theta(self):
         d1, d2 = self._d1_d2()
         spot = self.option.spot
-        k = self.option.strike
+        strike = self.option.strike
         maturity = self.option.maturity
         sigma = self.option.sigma
-        r = self.option.risk_free_rate
+        risk_free_rate = self.option.risk_free_rate
 
         volatility_decay = - ((spot * norm.pdf(d1) * sigma)
                    / (2 * np.sqrt(maturity)))
         
         if (self.option.option_type == 'call'):
-            theta = volatility_decay - r * k * np.exp((-r) * maturity) * norm.cdf(d2)
+            theta = volatility_decay - risk_free_rate * strike * np.exp((-risk_free_rate) * maturity) * norm.cdf(d2)
             return theta
 
         else:
-            theta = volatility_decay + r * k * np.exp((-r) * maturity) * norm.cdf(-d2)
+            theta = volatility_decay + risk_free_rate * strike * np.exp((-risk_free_rate) * maturity) * norm.cdf(-d2)
             return theta
         
     def rho(self):
         _, d2 = self._d1_d2()
-        k = self.option.strike
+        strike = self.option.strike
         maturity = self.option.maturity
-        r = self.option.risk_free_rate
+        risk_free_rate = self.option.risk_free_rate
 
         if (self.option.option_type == "call"):
-            return k * maturity * np.exp(-r * maturity) * norm.cdf(d2)
+            return strike * maturity * np.exp(-risk_free_rate * maturity) * norm.cdf(d2)
         
         else:
-            return -k * maturity * np.exp(-r * maturity) * norm.cdf(-d2)
+            return -strike * maturity * np.exp(-risk_free_rate * maturity) * norm.cdf(-d2)
