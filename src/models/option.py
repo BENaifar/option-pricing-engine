@@ -1,17 +1,29 @@
+from dataclasses import dataclass, field
+
+@dataclass
 class Option:
-    def __init__(self, S0:float, K:float, T:float, sigma:float, r:float, option_type='call'):    
-        self.S0 = S0
-        self.K = K
-        self.T = T
-        self.sigma = sigma
-        self.r = r
-        self.option_type = option_type.lower()
-    
-    def __str__(self):
-        return f"Option(S0={self.S0}, K={self.K}, T={self.T}, sigma={self.sigma}, r={self.r}, option_type='{self.option_type}')"
-    
+    spot: float
+    strike: float
+    maturity: float
+    sigma: float
+    risk_free_rate: float
+    option_type: str = field(default='call')
+
+    def __post_init_(self):
+        if self.spot <= 0:
+            raise ValueError("Spot price must be positive.")
+        if self.strike <= 0:
+            raise ValueError("Strike price must be positive.")
+        if self.maturity <= 0:
+            raise ValueError("Maturity must be positive.")
+        if self.sigma <= 0:
+            raise ValueError("Volatility must be positive.")
+        if self.option_type.lower() not in ("call", "put"):
+            raise ValueError("Option must be 'call' or 'put'.")
+        self.option_type = self.option_type.lower()
+
     def payoff(self, ST:float) -> float | None:
         if(self.option_type == 'put'):
-            return max(self.K - ST, 0)
-        elif(self.option_type == 'call'):
-            return max(ST - self.K, 0)
+            return max(self.strike - ST, 0)
+        else:
+            return max(ST - self.strike, 0)

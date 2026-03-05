@@ -54,14 +54,14 @@ class TestBlackScholes(unittest.TestCase):
         self.assertLessEqual(price, 1)
 
     def test_put_call_parity(self):
-        S0 = 100
-        K = 150
-        T = 2
+        spot = 100
+        strike = 150
+        maturity = 2
         sigma = 0.3
-        r = 0.05
+        risk_free_rate = 0.05
         
-        call = Option(S0, K, T, sigma, r, 'call')
-        put = Option(S0, K, T, sigma, r, 'put')
+        call = Option(spot, strike, maturity, sigma, risk_free_rate, 'call')
+        put = Option(spot, strike, maturity, sigma, risk_free_rate, 'put')
         
         black_scholes_call = BlackScholes(call)
         black_scholes_put = BlackScholes(put)
@@ -70,20 +70,20 @@ class TestBlackScholes(unittest.TestCase):
         P = float(black_scholes_put.price())
 
         diff_C_P = C - P
-        diff = float(S0 - K * np.exp((-r) * T))
+        diff = float(spot - strike * np.exp((-risk_free_rate) * maturity))
 
         self.assertAlmostEqual(diff_C_P, diff, places=12)
 
     def test_volatility_monotone(self):
         """Call price should increase with volatility."""
-        S0 = 100
-        K = 100
-        T = 1
-        r = 0.05
+        spot = 100
+        strike = 100
+        maturity = 1
+        risk_free_rate = 0.05
         sigmas = np.linspace(0.01, 1.0, 10)
         previous_price = 0
         for sigma in sigmas:
-            opt = Option(S0, K, T, sigma, r, 'call')
+            opt = Option(spot, strike, maturity, sigma, risk_free_rate, 'call')
             black = BlackScholes(opt)
             calculated = float(black.price())
             self.assertGreaterEqual(calculated, previous_price)
@@ -93,14 +93,14 @@ class TestBlackScholes(unittest.TestCase):
         """Random options within bounds, price within no-arbitrage limits."""
         rng = np.random.default_rng(seed=42)
         for _ in range(20):
-            S0 = rng.uniform(10, 200)
-            K = rng.uniform(10, 200)
-            T = rng.uniform(0.01, 5)
+            spot = rng.uniform(10, 200)
+            strike = rng.uniform(10, 200)
+            maturity = rng.uniform(0.01, 5)
             sigma = rng.uniform(0.05, 1)
-            r = rng.uniform(0, 0.2)
+            risk_free_rate = rng.uniform(0, 0.2)
 
-            call = Option(S0, K, T, sigma, r, 'call')
-            put = Option(S0, K, T, sigma, r, 'put')
+            call = Option(spot, strike, maturity, sigma, risk_free_rate, 'call')
+            put = Option(spot, strike, maturity, sigma, risk_free_rate, 'put')
 
             black_scholes_call = BlackScholes(call)
             black_scholes_put = BlackScholes(put)
@@ -109,24 +109,24 @@ class TestBlackScholes(unittest.TestCase):
             P = float(black_scholes_put.price())
 
             self.assertGreaterEqual(C, 0)
-            self.assertLessEqual(C, S0)
+            self.assertLessEqual(C, spot)
             self.assertGreaterEqual(P, 0)
-            self.assertLessEqual(P, K * np.exp(-r*T))
+            self.assertLessEqual(P, strike * np.exp(-risk_free_rate*maturity))
     
     def test_delta_finite_difference(self):
 
-        S0 = 100
-        K = 100
-        T = 1
+        spot = 100
+        strike = 100
+        maturity = 1
         sigma = 0.2
-        r = 0.05
+        risk_free_rate = 0.05
         epsilon = 1e-4
 
-        option = Option(S0, K, T, sigma, r, "call")
+        option = Option(spot, strike, maturity, sigma, risk_free_rate, "call")
         bs = BlackScholes(option)
 
-        option_up = Option(S0 + epsilon, K, T, sigma, r, "call")
-        option_down = Option(S0 - epsilon, K, T, sigma, r, "call")
+        option_up = Option(spot + epsilon, strike, maturity, sigma, risk_free_rate, "call")
+        option_down = Option(spot - epsilon, strike, maturity, sigma, risk_free_rate, "call")
 
         price_up = BlackScholes(option_up).price()
         price_down = BlackScholes(option_down).price()
@@ -137,20 +137,20 @@ class TestBlackScholes(unittest.TestCase):
 
     def test_gamma_finite_difference(self):
 
-        S0 = 100
-        K = 100
-        T = 1
+        spot = 100
+        strike = 100
+        maturity = 1
         sigma = 0.2
-        r = 0.05
+        risk_free_rate = 0.05
         epsilon = 1e-4
 
-        option = Option(S0, K, T, sigma, r, "call")
+        option = Option(spot, strike, maturity, sigma, risk_free_rate, "call")
         bs = BlackScholes(option)
 
         price = bs.price()
 
-        option_up = Option(S0 + epsilon, K, T, sigma, r, "call")
-        option_down = Option(S0 - epsilon, K, T, sigma, r, "call")
+        option_up = Option(spot + epsilon, strike, maturity, sigma, risk_free_rate, "call")
+        option_down = Option(spot - epsilon, strike, maturity, sigma, risk_free_rate, "call")
 
         price_up = BlackScholes(option_up).price()
         price_down = BlackScholes(option_down).price()
@@ -161,18 +161,18 @@ class TestBlackScholes(unittest.TestCase):
 
     def test_vega_finite_difference(self):
 
-        S0 = 100
-        K = 100
-        T = 1
+        spot = 100
+        strike = 100
+        maturity = 1
         sigma = 0.2
-        r = 0.05
+        risk_free_rate = 0.05
         epsilon = 1e-4
 
-        option = Option(S0, K, T, sigma, r, "call")
+        option = Option(spot, strike, maturity, sigma, risk_free_rate, "call")
         bs = BlackScholes(option)
 
-        option_up = Option(S0, K, T, sigma + epsilon, r, "call")
-        option_down = Option(S0, K, T, sigma - epsilon, r, "call")
+        option_up = Option(spot, strike, maturity, sigma + epsilon, risk_free_rate, "call")
+        option_down = Option(spot, strike, maturity, sigma - epsilon, risk_free_rate, "call")
 
         price_up = BlackScholes(option_up).price()
         price_down = BlackScholes(option_down).price()
@@ -183,18 +183,18 @@ class TestBlackScholes(unittest.TestCase):
 
     def test_rho_finite_difference(self):
 
-        S0 = 100
-        K = 100
-        T = 1
+        spot = 100
+        strike = 100
+        maturity = 1
         sigma = 0.2
-        r = 0.05
+        risk_free_rate = 0.05
         epsilon = 1e-4
 
-        option = Option(S0, K, T, sigma, r, "call")
+        option = Option(spot, strike, maturity, sigma, risk_free_rate, "call")
         bs = BlackScholes(option)
 
-        option_up = Option(S0, K, T, sigma, r + epsilon, "call")
-        option_down = Option(S0, K, T, sigma, r - epsilon, "call")
+        option_up = Option(spot, strike, maturity, sigma, risk_free_rate + epsilon, "call")
+        option_down = Option(spot, strike, maturity, sigma, risk_free_rate - epsilon, "call")
 
         price_up = BlackScholes(option_up).price()
         price_down = BlackScholes(option_down).price()
@@ -205,17 +205,17 @@ class TestBlackScholes(unittest.TestCase):
 
     def test_theta_finite_difference(self):
 
-        S0 = 100
-        K = 100
-        T = 1
+        spot = 100
+        strike = 100
+        maturity = 1
         sigma = 0.2
-        r = 0.05
+        risk_free_rate = 0.05
         epsilon = 1e-5
 
-        option = Option(S0, K, T, sigma, r, "call")
+        option = Option(spot, strike, maturity, sigma, risk_free_rate, "call")
         bs = BlackScholes(option)
 
-        option_forward = Option(S0, K, T + epsilon, sigma, r, "call")
+        option_forward = Option(spot, strike, maturity + epsilon, sigma, risk_free_rate, "call")
 
         price = bs.price()
         price_forward = BlackScholes(option_forward).price()
