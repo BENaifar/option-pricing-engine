@@ -20,5 +20,5 @@ class BaseModel(ABC):
 
 
     @abstractmethod
-    def simulate_paths(self, maturity, n_paths, seed=None) -> np.ndarray:
+    def simulate_paths(self, maturity: float, n_paths: int, seed=None) -> np.ndarray:
         pass

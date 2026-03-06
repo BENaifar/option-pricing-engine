@@ -7,7 +7,7 @@ from src.instruments.base_option import BaseOption
 @dataclass
 class EuropeanOption(BaseOption):
 
-    def payoff(self, ST) -> np.float64 | np.ndarray:
+    def payoff(self, ST: np.float64 | np.ndarray) -> np.float64 | np.ndarray:
         if(self.option_type == 'put'):
             return np.maximum(self.strike - ST, 0)
         else:

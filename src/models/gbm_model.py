@@ -7,7 +7,7 @@ from src.models.base_model import BaseModel
 @dataclass
 class GBMModel(BaseModel):
             
-    def simulate_paths(self, maturity, n_paths, seed=None):
+    def simulate_paths(self, maturity: float, n_paths: int, seed=None):
         rng = np.random.default_rng(seed)
         dt = maturity / self.n_steps
         Z = rng.normal(0, dt, size=[n_paths, self.n_steps])

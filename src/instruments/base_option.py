@@ -19,5 +19,5 @@ class BaseOption(ABC):
         self.option_type = self.option_type.lower()
 
     @abstractmethod
-    def payoff(self, ST) -> np.float64 | np.ndarray:
+    def payoff(self, ST: np.float64 | np.ndarray) -> np.float64 | np.ndarray:
         pass

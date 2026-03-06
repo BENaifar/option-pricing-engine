@@ -11,13 +11,19 @@ class NumericalGreeks:
     rate: float
     sigma: float
 
+    def __post_init__(self):
+        if self.spot <= 0:
+            raise ValueError("Spot price must be positive.")
+        if self.sigma <= 0:
+            raise ValueError("Volatility must be positive.")
+
     def _d1_d2(self, option: BaseOption):
         d1 = (np.log(self.spot / option.strike) + (self.rate + 0.5 * self.sigma ** 2) * option.maturity) / (self.sigma * np.sqrt(option.maturity))
         d2 = d1 - self.sigma * np.sqrt(option.maturity)
 
         return d1, d2
     
-    def delta(self, option):
+    def delta(self, option: BaseOption):
         d1, _ = self._d1_d2(option)
 
         if (option.option_type == "call"):
@@ -26,19 +32,19 @@ class NumericalGreeks:
         else:
             return norm.cdf(d1) - 1
     
-    def gamma(self, option):
+    def gamma(self, option: BaseOption):
         d1, _ = self._d1_d2(option)
 
         return norm.pdf(d1) / (
             self.spot * self.sigma * np.sqrt(option.maturity)
         )
     
-    def vega(self, option):
+    def vega(self, option: BaseOption):
         d1, _ = self._d1_d2(option)
 
         return self.spot * norm.pdf(d1) * np.sqrt(option.maturity)
     
-    def theta(self, option):
+    def theta(self, option: BaseOption):
         d1, d2 = self._d1_d2(option)
         spot = self.spot
         strike = option.strike
@@ -57,7 +63,7 @@ class NumericalGreeks:
             theta = volatility_decay + rate * strike * np.exp((-rate) * maturity) * norm.cdf(-d2)
             return theta
         
-    def rho(self, option):
+    def rho(self, option: BaseOption):
         _, d2 = self._d1_d2(option)
         strike = option.strike
         maturity = option.maturity

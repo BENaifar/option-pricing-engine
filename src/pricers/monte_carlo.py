@@ -17,7 +17,7 @@ class MonteCarloPricer(BasePricer):
             raise ValueError("Number of simulations must be positive.")
     
     def price(self, option: BaseOption):
-        paths = self.model.simulate_paths(option, self.n_paths, seed=self.seed)
+        paths = self.model.simulate_paths(option.maturity, self.n_paths, seed=self.seed)
         payoffs = option.payoff(paths[:, -1])
         discounted_price = np.exp(-self.model.rate * option.maturity) * np.mean(payoffs)
         
