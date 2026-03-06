@@ -1,13 +1,15 @@
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
+import numpy as np
+
 @dataclass
 class BaseOption(ABC):
     strike: float
     maturity: float
     option_type: str = field(default='call')
 
-    def __post_init_(self):
+    def __post_init__(self):
         if self.strike <= 0:
             raise ValueError("Strike price must be positive.")
         if self.maturity <= 0:
@@ -17,5 +19,5 @@ class BaseOption(ABC):
         self.option_type = self.option_type.lower()
 
     @abstractmethod
-    def payoff(self, ST:float) -> float | None:
+    def payoff(self, ST) -> np.float64 | np.ndarray:
         pass

@@ -6,7 +6,7 @@ class MarketData:
     risk_free_rate: float
     sigma: float
 
-    def __post_init_(self):
+    def __post_init__(self):
         if self.spot <= 0:
             raise ValueError("Spot price must be positive.")
         if self.sigma <= 0:
