@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import norm
 
-from src.models.option import Option
+from src.instruments.base_option import BaseOption
 
 class AnalyticalGreeks:
 
