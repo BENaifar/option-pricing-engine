@@ -6,7 +6,7 @@ from scipy.stats import norm
 from src.instruments.base_option import BaseOption
 
 @dataclass
-class NumericalGreeks:
+class AnalyticalGreeks:
     spot: float
     rate: float
     sigma: float
