@@ -18,6 +18,10 @@ class BaseOption(ABC):
             raise ValueError("Option must be 'call' or 'put'.")
         self.option_type = self.option_type.lower()
 
-    @abstractmethod
     def payoff(self, ST: np.float64 | np.ndarray) -> np.float64 | np.ndarray:
-        pass
+        if(self.option_type == 'put'):
+            return np.maximum(self.strike - ST, 0)
+        else:
+            return np.maximum(ST - self.strike, 0)
+        
+        
