@@ -1,24 +1,25 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 @dataclass
 class BaseModel(ABC):
-    spot: float
     rate: float
     sigma: float
-    n_steps: int
+    dividend_yield: float = 0.0
 
     def __post_init__(self):
-        if self.n_steps <= 0:
-            raise ValueError("Number of steps must be positive.")
-        if self.spot <= 0:
-            raise ValueError("Spot price must be positive.")
         if self.sigma <= 0:
             raise ValueError("Volatility must be positive.")
+        if self.dividend_yield < 0:
+            raise ValueError("Dividend yield must be positive")
 
 
     @abstractmethod
-    def simulate_paths(self, maturity: float, n_paths: int, seed=None) -> np.ndarray:
+    def drift(self, S: float, t: float) -> float:
+        pass
+
+    @abstractmethod
+    def diffusion(self, S, t) -> float:
         pass
