@@ -7,6 +7,7 @@ import numpy as np
 class BaseOption(ABC):
     strike: float
     maturity: float
+    american: bool
     option_type: str = field(default='call')
 
     def __post_init__(self):
@@ -24,4 +25,7 @@ class BaseOption(ABC):
         else:
             return np.maximum(ST - self.strike, 0)
         
+    @abstractmethod
+    def is_american(self) -> bool:
+        pass        
         
