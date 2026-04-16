@@ -5,7 +5,7 @@ from base_model import BaseModel
 class BlackScholesModel(BaseModel):
 
     def drift(self, S, t):
-        return (self.rate - self.dividend_yield) * S
+        return self.rate * S
     
     def diffusion(self, S, t):
         return self.sigma * S
