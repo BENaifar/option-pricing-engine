@@ -12,8 +12,8 @@ class BlackScholesPricer():
 
 
     def _d1_d2(self, option: BaseOption, spot: float):
-        d1 = (np.log(spot / option.strike) + (self.model.drift(spot, option.maturity) + 0.5 * self.model.diffusion(spot, option.maturity) ** 2) * option.maturity) / (self.model.diffusion(spot, option.maturity) * np.sqrt(option.maturity))
-        d2 = d1 - self.model.diffusion(spot, option.maturity) * np.sqrt(option.maturity)
+        d1 = (np.log(spot / option.strike) + (self.model.rate + 0.5 * self.model.sigma ** 2) * option.maturity) / (self.model.sigma * np.sqrt(option.maturity))
+        d2 = d1 - self.model.sigma * np.sqrt(option.maturity)
 
         return d1, d2
 
@@ -22,8 +22,8 @@ class BlackScholesPricer():
         d1, d2 = self._d1_d2(option, spot)
 
         if (option.option_type == "call"):
-            price = spot * norm.cdf(d1) - option.strike * np.exp((-self.model.drift(spot, option.maturity)) * option.maturity) * norm.cdf(d2)
+            price = spot * norm.cdf(d1) - option.strike * np.exp((-self.model.rate) * option.maturity) * norm.cdf(d2)
             return price
         else:
-            price = option.strike * np.exp((-self.model.drift(spot, option.maturity)) * option.maturity) * norm.cdf(-d2) - spot * norm.cdf(-d1)
+            price = option.strike * np.exp((-self.model.rate) * option.maturity) * norm.cdf(-d2) - spot * norm.cdf(-d1)
             return price
