@@ -5,11 +5,13 @@ import numpy as np
 from src.instruments.base_option import BaseOption
 from src.models.base_model import BaseModel
 from src.schemes.base_scheme import BaseScheme
+from src.market_data.market_data import MarketData
 
 @dataclass
 class MonteCarloPricer:
     model: BaseModel
     scheme : BaseScheme
+    market_data: MarketData
     paths: int
     seed: int
 
@@ -26,7 +28,7 @@ class MonteCarloPricer:
         
         S = np.full((self.paths, n_steps + 1), spot)
         for t in range(n_steps):
-            S[:, t + 1] = self.scheme.step(self.model, S[:, t], t * dt, dt, brownian_increment[:, t])
+            S[:, t + 1] = self.scheme.step(self.model, self.market_data, S[:, t], t * dt, dt, brownian_increment[:, t])
         
         return S
     
@@ -34,7 +36,7 @@ class MonteCarloPricer:
         paths = self.simulate(option, spot, n_steps)
         payoffs = option.payoff(paths[:, -1])
         # For now!!!
-        discounted_price = np.mean(payoffs) * np.exp((-self.model.rate) * option.maturity)
+        discounted_price = np.mean(payoffs) * np.exp((-self.market_data.rate) * option.maturity)
         return discounted_price
     
 

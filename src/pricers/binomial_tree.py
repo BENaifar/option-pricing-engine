@@ -3,33 +3,25 @@ from dataclasses import dataclass
 import numpy as np
 
 from src.instruments.base_option import BaseOption
+from src.market_data.market_data import MarketData
 
 @dataclass
 class BinomialTree:
-    spot: float
-    r: float
-    sigma:float
-    q: float
+    market_data: MarketData
     steps: int
 
     def __post_init__(self):
         if self.steps <= 0:
             raise ValueError("Number of steps must be a positive integer.")
-        if self.spot <= 0:
-            raise ValueError("Spot price must be positive.")
-        if self.sigma < 0:
-            raise ValueError("Volatility must be non-negative.")
-        if self.q < 0:
-            raise ValueError("Dividend yield must be non-negative.")        
 
     def _u_d(self, option: BaseOption):
-        u = np.exp(self.sigma * np.sqrt(option.maturity / self.steps))
+        u = np.exp(self.market_data.sigma * np.sqrt(option.maturity / self.steps))
         d = 1 / u
         return u, d
     
     def calculate_probability(self, option: BaseOption) -> float:
         u, d = self._u_d(option)
-        return (np.exp((self.r - self.q) * (option.maturity / self.steps)) - d) / (u - d)
+        return (np.exp((self.market_data.rate - self.market_data.dividend_yield) * (option.maturity / self.steps)) - d) / (u - d)
 
     def build_tree(self, option:BaseOption):
         u, d = self._u_d(option)
@@ -38,7 +30,7 @@ class BinomialTree:
 
         for i in range(self.steps + 1):
             j = np.arange(i + 1)
-            tree[j, i] = self.spot * (u ** (i - j)) * (d ** j)
+            tree[j, i] = self.market_data.spot * (u ** (i - j)) * (d ** j)
         
         return tree
     
@@ -52,7 +44,7 @@ class BinomialTree:
 
         for i in range(self.steps, 0, -1):
             j = np.arange(i)
-            option_payoffs[j, i - 1] = np.exp(-self.r * dt) * (probability * option_payoffs[j, i] + (1 - probability) * option_payoffs[j + 1, i])
+            option_payoffs[j, i - 1] = np.exp(-self.market_data.rate * dt) * (probability * option_payoffs[j, i] + (1 - probability) * option_payoffs[j + 1, i])
         
         return option_payoffs
     
@@ -66,7 +58,7 @@ class BinomialTree:
 
         for i in range(self.steps, 0, -1):
             j = np.arange(i)
-            new_payoff = np.exp(-self.r * dt) * (probability * option_payoffs[j, i] + (1 - probability) * option_payoffs[j + 1, i])
+            new_payoff = np.exp(-self.market_data.rate * dt) * (probability * option_payoffs[j, i] + (1 - probability) * option_payoffs[j + 1, i])
             option_payoffs[j, i - 1] = np.maximum(option.payoff(tree[j , i - 1]), new_payoff)
         
         return option_payoffs
