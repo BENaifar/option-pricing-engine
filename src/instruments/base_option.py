@@ -7,7 +7,6 @@ import numpy as np
 class BaseOption(ABC):
     strike: float
     maturity: float
-    american: bool
     option_type: str = field(default='call')
 
     def __post_init__(self):
