@@ -6,5 +6,6 @@ from src.instruments.base_option import BaseOption
 
 @dataclass
 class EuropeanOption(BaseOption):
+    
     def is_american(self) -> bool:
         return False
