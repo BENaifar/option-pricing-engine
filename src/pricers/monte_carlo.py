@@ -14,9 +14,9 @@ class MonteCarloPricer:
     seed: int
 
     def __post_init__(self):
-        if self.paths <= 0:
+        if self.paths <= 0 or not isinstance(self.paths, (int, np.integer)):
             raise ValueError("Paths can only be positive and over 0")
-        if self.seed is None:
+        if self.seed is None or self.seed < 0 or not isinstance(self.seed, (int, np.integer)):
             raise ValueError("Seed must be provided")
 
     def simulate(self, option: BaseOption, spot: float, n_steps = 1000):

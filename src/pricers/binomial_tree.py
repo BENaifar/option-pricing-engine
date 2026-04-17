@@ -12,6 +12,16 @@ class BinomialTree:
     q: float
     steps: int
 
+    def __post_init__(self):
+        if self.steps <= 0:
+            raise ValueError("Number of steps must be a positive integer.")
+        if self.spot <= 0:
+            raise ValueError("Spot price must be positive.")
+        if self.sigma < 0:
+            raise ValueError("Volatility must be non-negative.")
+        if self.q < 0:
+            raise ValueError("Dividend yield must be non-negative.")        
+
     def _u_d(self, option: BaseOption):
         u = np.exp(self.sigma * np.sqrt(option.maturity / self.steps))
         d = 1 / u
