@@ -22,11 +22,11 @@ class MonteCarloPricer:
     def simulate(self, option: BaseOption, spot: float, n_steps = 1000):
         rng = np.random.default_rng(self.seed)
         dt = option.maturity / n_steps
-        dW = rng.normal(0, np.sqrt(dt), size=[self.paths, n_steps])
+        brownian_increment = rng.normal(0, np.sqrt(dt), size=[self.paths, n_steps])
         
         S = np.full((self.paths, n_steps + 1), spot)
         for t in range(n_steps):
-            S[:, t + 1] = self.scheme.step(self.model, S[:, t], t * dt, dt, dW[:, t])
+            S[:, t + 1] = self.scheme.step(self.model, S[:, t], t * dt, dt, brownian_increment[:, t])
         
         return S
     
