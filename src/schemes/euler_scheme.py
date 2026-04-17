@@ -1,4 +1,4 @@
-from base_scheme import BaseScheme
+from src.schemes.base_scheme import BaseScheme
 from src.models.base_model import BaseModel
 
 class EulerScheme(BaseScheme):

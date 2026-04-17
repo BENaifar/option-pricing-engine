@@ -1,6 +1,6 @@
 import numpy as np
 
-from base_scheme import BaseScheme
+from src.schemes.base_scheme import BaseScheme
 from src.models.base_model import BaseModel
 
 class ExactGBMScheme(BaseScheme):

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from base_option import BaseOption
+from src.instruments.base_option import BaseOption
 
 @dataclass
 class AmericanOption(BaseOption):
