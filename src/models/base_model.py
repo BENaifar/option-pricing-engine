@@ -9,9 +9,9 @@ from src.market_data.market_data import MarketData
 class BaseModel(ABC):
 
     @abstractmethod
-    def drift(self, price, time, market_data) -> float:
+    def drift(self, price: float, time: float, market_data: MarketData) -> float:
         pass
 
     @abstractmethod
-    def diffusion(self, price, market_data) -> float:
+    def diffusion(self, price: float, time:float, market_data: MarketData) -> float:
         pass
