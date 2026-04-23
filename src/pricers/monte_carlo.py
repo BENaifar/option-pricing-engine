@@ -1,11 +1,12 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
-from typing import Dict, Optional
 
 from src.instruments.base_option import BaseOption
 from src.greeks.greeks import GREEKS, Greeks
-from src.greeks.greeks_bumps_config import GreeksBumpsConfig
+from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
+from src.greeks.finite_differences_bumper import FiniteDifferencesBumper
 from src.models.base_model import BaseModel
 from src.pricers.base_pricer import BasePricer
 from src.numerics.base_scheme import BaseScheme
@@ -18,7 +19,8 @@ class MonteCarloPricer(BasePricer):
     scheme : BaseScheme
     paths: int
     seed: int
-    greek_bumps_config: GreeksBumpsConfig
+    finite_differences_greeks: FiniteDifferencesGreeks    
+    finite_differences_bumper: FiniteDifferencesBumper
     n_steps: int = 64
 
     def __post_init__(self):
@@ -83,7 +85,7 @@ class MonteCarloPricer(BasePricer):
 
         simulation_result = self.simulate(option, market_data)
 
-        greeks_values: Dict[str, Optional[float]] = {
+        greeks_values: dict[str, Optional[float]] = {
             'delta': None,
             'gamma': None,
             'theta': None,
@@ -106,68 +108,45 @@ class MonteCarloPricer(BasePricer):
         return Greeks(**greeks_values)
 
     def _rho(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> float:
-        rate_up = replace(market_data, rate=(market_data.rate + self.greek_bumps_config.rate_abs))
-        rate_down = replace(market_data, rate=(market_data.rate - self.greek_bumps_config.rate_abs))
+        rate_up, rate_down = self.finite_differences_bumper.bump_rate(market_data)
 
         price_rate_up = self._repriced_with_normals(option, rate_up, simulation_result.normals)
         price_rate_down = self._repriced_with_normals(option, rate_down, simulation_result.normals)
 
-        rho = (price_rate_up - price_rate_down) / (self.greek_bumps_config.rate_abs * 2)
+        rho = self.finite_differences_greeks.rho(price_rate_up, price_rate_down)
 
         return rho
 
     def _vega(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> float:
-        volatility_up = replace(market_data, sigma=(market_data.sigma + self.greek_bumps_config.vol_abs))
-        volatility_down = replace(market_data, sigma=(market_data.sigma - self.greek_bumps_config.vol_abs))
+        volatility_up, volatility_down = self.finite_differences_bumper.bump_volatility(market_data)
 
         price_vol_incr = self._repriced_with_normals(option, volatility_up, simulation_result.normals)
         price_vol_decr = self._repriced_with_normals(option, volatility_down, simulation_result.normals)
 
-        vega = (price_vol_incr - price_vol_decr) / (self.greek_bumps_config.vol_abs * 2)
+        vega = self.finite_differences_greeks.vega(price_vol_incr, price_vol_decr)
 
         return float(vega)
 
     def _theta(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> float:
-        dt = self.greek_bumps_config.time_days
-
-        shorter_maturity = max(option.maturity - dt, 1e-8)
-        longer_maturity = max(option.maturity + dt, 2e-8)
-
-        option_short = replace(option, maturity=shorter_maturity)
-        option_long = replace(option, maturity=longer_maturity)
+        dt, option_short, option_long = self.finite_differences_bumper.bump_time(option)
 
         price_short = self._repriced_with_normals(option_short, market_data, simulation_result.normals)
         price_long = self._repriced_with_normals(option_long, market_data, simulation_result.normals)
 
-        theta = -(price_long - price_short) / (2 * dt)
+        theta = self.finite_differences_greeks.theta(dt, price_short, price_long)
 
         return float(theta)
 
     def _spot_greeks(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> tuple[float, float]:
         base_price = self._price_from_paths(option, market_data, simulation_result.terminal_paths)
 
-        market_down = replace(market_data, spot=(market_data.spot * (1 - self.greek_bumps_config.spot_rel)))
-        market_up = replace(market_data, spot=(market_data.spot * (1 + self.greek_bumps_config.spot_rel)))
+        market_down, market_up = self.finite_differences_bumper.bump_spot(market_data)
+
 
         price_up = self._repriced_with_normals(option, market_up, simulation_result.normals)
         price_down = self._repriced_with_normals(option, market_down, simulation_result.normals)
 
-        delta = (price_up - price_down) / (self.greek_bumps_config.spot_rel * market_data.spot * 2)
-        gamma = (price_up - 2 * base_price + price_down) / ((self.greek_bumps_config.spot_rel * market_data.spot) ** 2)
+        delta = self.finite_differences_greeks.delta(market_data, price_up, price_down)
+        gamma = self.finite_differences_greeks.gamma(market_data, base_price, price_up, price_down)
 
         return delta, gamma
-
-
-    def _validate_required(self, greeks_list):
-        if greeks_list is None:
-            greeks_list = [GREEKS.DELTA, GREEKS.GAMMA, GREEKS.THETA, GREEKS.RHO, GREEKS.VEGA]
-        
-        if not isinstance(greeks_list, list):
-            raise TypeError(f"greeks_list must be a list or None, got {type(greeks_list).__name__}")
-        
-        for greek in greeks_list:
-            if not isinstance(greek, GREEKS):
-                raise ValueError(f"Invalid greek: {greek}. Must be one of {[g.name for g in GREEKS]}")
-        
-        required = set(g.value for g in greeks_list)
-        return required        
