@@ -9,17 +9,30 @@ from src.market_data.market_data import MarketData
 from src.pricers.base_pricer import BasePricer
 from src.greeks.greeks import Greeks, GREEKS
 
+@dataclass(frozen=True)
+class BSTerms:
+    S: float
+    K: float
+    sigma: float
+    T: float
+    r: float
+    sqrtT: float
+    disc: float
+    norm_pdf_d1: float | None | np.ndarray
+    norm_cdf_d1: float | None | np.ndarray
+    norm_cdf_d2: float | None | np.ndarray
+
 @dataclass
 class BlackScholesPricer(BasePricer):
 
-    def _d1_d2(self, option: BaseOption, market_data: MarketData):
+    def _d1_d2(self, option: BaseOption, market_data: MarketData) -> tuple[float, float]:
         d1 = (np.log(market_data.spot / option.strike) + (market_data.rate + 0.5 * market_data.sigma ** 2) * option.maturity) / (market_data.sigma * np.sqrt(option.maturity))
         d2 = d1 - market_data.sigma * np.sqrt(option.maturity)
 
         return d1, d2
 
 
-    def price(self, option, market_data: MarketData) -> (np.float64):
+    def price(self, option: BaseOption, market_data: MarketData) -> np.float64:
         d1, d2 = self._d1_d2(option, market_data)
 
         if (option.option_type == OptionType.CALL):
@@ -29,7 +42,7 @@ class BlackScholesPricer(BasePricer):
             price = option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(-d2) - market_data.spot * norm.cdf(-d1)
             return price
         
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list[GREEKS] | None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list) -> Greeks:
 
         required = self._validate_required(greeks_list)
         bs_terms = self._precompute_terms(option, market_data, required)
@@ -49,7 +62,7 @@ class BlackScholesPricer(BasePricer):
         required = set(g.value for g in greeks_list)
         return required
 
-    def _precompute_terms(self, option, market_data, required):
+    def _precompute_terms(self, option: BaseOption, market_data: MarketData, required) -> BSTerms:
         d1, d2 = self._d1_d2(option, market_data)
         norm_pdf_d1 = None
         norm_cdf_d1 = None
@@ -74,7 +87,7 @@ class BlackScholesPricer(BasePricer):
 
         return BSTerms(S, K, sigma, T, r, sqrtT, disc, norm_pdf_d1, norm_cdf_d1, norm_cdf_d2)
 
-    def _compute_greeks(self, option, required, bs_terms):
+    def _compute_greeks(self, option: BaseOption, required, bs_terms: BSTerms) -> Greeks:
         delta = None
         gamma = None
         theta = None
@@ -112,16 +125,3 @@ class BlackScholesPricer(BasePricer):
             rho=rho, 
             vega=vega
         )
-
-@dataclass(frozen=True)
-class BSTerms:
-    S: float
-    K: float
-    sigma: float
-    T: float
-    r: float
-    sqrtT: float
-    disc: float
-    norm_pdf_d1: float | None | np.ndarray
-    norm_cdf_d1: float | None | np.ndarray
-    norm_cdf_d2: float | None | np.ndarray
