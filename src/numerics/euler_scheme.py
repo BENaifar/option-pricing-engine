@@ -1,4 +1,4 @@
-from src.schemes.base_scheme import BaseScheme
+from src.numerics.base_scheme import BaseScheme
 from src.models.base_model import BaseModel
 from src.market_data.market_data import MarketData
 

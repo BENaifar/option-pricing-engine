@@ -5,6 +5,7 @@ import numpy as np
 
 from src.instruments.base_option import BaseOption
 from src.market_data.market_data import MarketData
+from src.greeks.greeks import Greeks
 
 @dataclass
 class BasePricer(ABC):
@@ -14,5 +15,5 @@ class BasePricer(ABC):
         pass
 
     @abstractmethod
-    def greeks(self, option: BaseOption, market_data: MarketData) -> float:
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None) -> Greeks:
         pass

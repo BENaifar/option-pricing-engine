@@ -4,8 +4,10 @@ import numpy as np
 from scipy.stats import norm
 
 from src.instruments.base_option import BaseOption
+from src.instruments.option_types import OptionType
 from src.market_data.market_data import MarketData
 from src.pricers.base_pricer import BasePricer
+from src.greeks.greeks import Greeks, GREEKS
 
 @dataclass
 class BlackScholesPricer(BasePricer):
@@ -20,9 +22,106 @@ class BlackScholesPricer(BasePricer):
     def price(self, option, market_data: MarketData) -> (np.float64):
         d1, d2 = self._d1_d2(option, market_data)
 
-        if (option.option_type == "call"):
+        if (option.option_type == OptionType.CALL):
             price = market_data.spot * norm.cdf(d1) - option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(d2)
             return price
         else:
             price = option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(-d2) - market_data.spot * norm.cdf(-d1)
             return price
+        
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list[GREEKS] | None) -> Greeks:
+
+        required = self._validate_required(greeks_list)
+        bs_terms = self._precompute_terms(option, market_data, required)
+        return self._compute_greeks(option, required, bs_terms)
+
+    def _validate_required(self, greeks_list):
+        if greeks_list is None:
+            greeks_list = [GREEKS.DELTA, GREEKS.GAMMA, GREEKS.THETA, GREEKS.RHO, GREEKS.VEGA]
+        
+        if not isinstance(greeks_list, list):
+            raise TypeError(f"greeks_list must be a list or None, got {type(greeks_list).__name__}")
+        
+        for greek in greeks_list:
+            if not isinstance(greek, GREEKS):
+                raise ValueError(f"Invalid greek: {greek}. Must be one of {[g.name for g in GREEKS]}")
+        
+        required = set(g.value for g in greeks_list)
+        return required
+
+    def _precompute_terms(self, option, market_data, required):
+        d1, d2 = self._d1_d2(option, market_data)
+        norm_pdf_d1 = None
+        norm_cdf_d1 = None
+        norm_cdf_d2 = None
+
+        if (required & {"gamma","vega","theta"}):
+            norm_pdf_d1 = norm.pdf(d1)
+
+        if (required & {"delta"}):
+            norm_cdf_d1 = norm.cdf(d1)
+
+        if (required & {"theta", "rho"}):
+            norm_cdf_d2 = norm.cdf(d2)
+
+        S = market_data.spot
+        K = option.strike
+        sigma = market_data.sigma
+        T = option.maturity
+        r = market_data.rate
+        sqrtT = np.sqrt(T)
+        disc = np.exp(-r*T)
+
+        return BSTerms(S, K, sigma, T, r, sqrtT, disc, norm_pdf_d1, norm_cdf_d1, norm_cdf_d2)
+
+    def _compute_greeks(self, option, required, bs_terms):
+        delta = None
+        gamma = None
+        theta = None
+        vega = None
+        rho = None
+        
+        if "delta" in required:            
+            if option.option_type == OptionType.CALL:
+                delta = float(bs_terms.norm_cdf_d1)
+            else:
+                delta = float(bs_terms.norm_cdf_d1 - 1)
+        
+        if "theta" in required:
+            if option.option_type == OptionType.CALL:
+                theta = float(-((bs_terms.S * bs_terms.norm_pdf_d1 * bs_terms.sigma) / (2 * bs_terms.sqrtT)) - bs_terms.r * bs_terms.K * bs_terms.disc * bs_terms.norm_cdf_d2)
+            else:
+                theta = float(-((bs_terms.S * bs_terms.norm_pdf_d1 * bs_terms.sigma) / (2 * bs_terms.sqrtT)) + bs_terms.r * bs_terms.K * bs_terms.disc * (1 - bs_terms.norm_cdf_d2))
+        
+        if "gamma" in required:
+            gamma = float(bs_terms.norm_pdf_d1 / (bs_terms.S * bs_terms.sigma * bs_terms.sqrtT))
+        
+        if "vega" in required:
+            vega = float(bs_terms.S * bs_terms.sqrtT * bs_terms.norm_pdf_d1)
+        
+        if "rho" in required:
+            if option.option_type == OptionType.CALL:
+                rho = float(bs_terms.K * bs_terms.T * bs_terms.disc * bs_terms.norm_cdf_d2)
+            else:
+                rho = float(bs_terms.K * bs_terms.T * bs_terms.disc * (1 - bs_terms.norm_cdf_d2))
+
+        return Greeks(
+            delta=delta,
+            gamma=gamma, 
+            theta=theta, 
+            rho=rho, 
+            vega=vega
+        )
+
+@dataclass(frozen=True)
+class BSTerms:
+    S: float
+    K: float
+    sigma: float
+    T: float
+    r: float
+    sqrtT: float
+    disc: float
+    norm_pdf_d1: float | None | np.ndarray
+    norm_cdf_d1: float | None | np.ndarray
+    norm_cdf_d2: float | None | np.ndarray
