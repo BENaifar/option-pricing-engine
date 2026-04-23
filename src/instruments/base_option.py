@@ -3,20 +3,21 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+from src.instruments.option_types import OptionType
+
 @dataclass
 class BaseOption(ABC):
     strike: float
     maturity: float
-    option_type: str = field(default='call')
+    option_type: OptionType
 
     def __post_init__(self):
         if self.strike <= 0:
             raise ValueError("Strike price must be positive.")
         if self.maturity <= 0:
             raise ValueError("Maturity must be positive.")
-        if self.option_type.lower() not in ("call", "put"):
+        if isinstance(self.option_type, OptionType):
             raise ValueError("Option must be 'call' or 'put'.")
-        self.option_type = self.option_type.lower()
 
     def payoff(self, ST: np.float64 | np.ndarray) -> np.float64 | np.ndarray:
         if(self.option_type == 'put'):
