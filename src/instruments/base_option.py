@@ -16,11 +16,11 @@ class BaseOption(ABC):
             raise ValueError("Strike price must be positive.")
         if self.maturity <= 0:
             raise ValueError("Maturity must be positive.")
-        if isinstance(self.option_type, OptionType):
+        if not isinstance(self.option_type, OptionType):
             raise ValueError("Option must be 'call' or 'put'.")
 
     def payoff(self, ST: np.float64 | np.ndarray) -> np.float64 | np.ndarray:
-        if(self.option_type == 'put'):
+        if(self.option_type == OptionType.PUT):
             return np.maximum(self.strike - ST, 0)
         else:
             return np.maximum(ST - self.strike, 0)
