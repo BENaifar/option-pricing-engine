@@ -14,5 +14,3 @@ class MarketData:
             raise ValueError("Volatility must be positive.")
         if self.dividend_yield < 0:
             raise ValueError("Dividend yield must be positive")
-        if self.rate - self.dividend_yield == 0:
-            raise ValueError("REALLY?!")
