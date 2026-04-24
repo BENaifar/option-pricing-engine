@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 import numpy as np
@@ -8,17 +8,26 @@ from src.market_data.market_data import MarketData
 from src.pricers.base_pricer import BasePricer
 from src.greeks.greeks import Greeks, GREEKS
 from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
-from src.greeks.finite_differences_bumper import FiniteDifferencesBumper
+from src.greeks.greeks_bumps_config import GreeksBumpsConfig
+from src.market_data.market_bumper import MarketBumper
 
 @dataclass
 class BinomialTree(BasePricer):
-    steps: int
-    finite_differences_greeks: FiniteDifferencesGreeks
-    finite_differences_bumper: FiniteDifferencesBumper
+    steps: int = 1000
+    finite_differences_greeks: FiniteDifferencesGreeks = field(default_factory=lambda: FiniteDifferencesGreeks(greek_bumps_config=GreeksBumpsConfig()))
+    finite_differences_bumper: MarketBumper = field(default_factory=lambda: MarketBumper(greek_bumps_config=GreeksBumpsConfig()))
+
 
     def __post_init__(self):
-        if self.steps <= 0:
+        if not isinstance(self.steps, (int, np.integer)) or self.steps <= 0:
             raise ValueError("Number of steps must be a positive integer.")
+        
+        if not isinstance(self.finite_differences_greeks, FiniteDifferencesGreeks):
+            raise TypeError("finite_differences_greeks must be an instance of FiniteDifferencesGreeks")
+        
+        if not isinstance(self.finite_differences_bumper, MarketBumper):
+            raise TypeError("finite_differences_bumper must be an instance of MarketBumper")
+
 
     def _u_d(self, option: BaseOption, market_data: MarketData) -> tuple[float, float]:
         u = np.exp(market_data.sigma * np.sqrt(option.maturity / self.steps))
@@ -70,12 +79,12 @@ class BinomialTree(BasePricer):
         
         return option_payoffs
     
-    def price(self, option: BaseOption, market_data: MarketData) -> np.float64:
+    def price(self, option: BaseOption, market_data: MarketData) -> float:
         if option.is_american():
             return self.build_american_payoff_tree(option, market_data)[0, 0]
         return self.build_european_payoff_tree(option, market_data)[0, 0]
     
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None = None) -> Greeks:
         required = self._validate_required(greeks_list=greeks_list)
 
         greeks_values: Dict[str, Optional[float]] = {

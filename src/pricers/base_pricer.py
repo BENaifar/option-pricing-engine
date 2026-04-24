@@ -11,11 +11,11 @@ from src.greeks.greeks import Greeks, GREEKS
 class BasePricer(ABC):
 
     @abstractmethod
-    def price(self, option: BaseOption, market_data: MarketData) -> np.float64:
+    def price(self, option: BaseOption, market_data: MarketData) -> float:
         pass
 
     @abstractmethod
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None = None) -> Greeks:
         pass
 
     def _validate_required(self, greeks_list):
@@ -29,5 +29,5 @@ class BasePricer(ABC):
             if not isinstance(greek, GREEKS):
                 raise ValueError(f"Invalid greek: {greek}. Must be one of {[g.name for g in GREEKS]}")
         
-        required = set(g.value for g in greeks_list)
+        required = set(greeks_list)
         return required        

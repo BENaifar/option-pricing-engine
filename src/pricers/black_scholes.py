@@ -16,8 +16,10 @@ class BSTerms:
     sigma: float
     T: float
     r: float
+    q: float
     sqrtT: float
     disc: float
+    disc_q:float
     norm_pdf_d1: float | None | np.ndarray
     norm_cdf_d1: float | None | np.ndarray
     norm_cdf_d2: float | None | np.ndarray
@@ -26,23 +28,26 @@ class BSTerms:
 class BlackScholesPricer(BasePricer):
 
     def _d1_d2(self, option: BaseOption, market_data: MarketData) -> tuple[float, float]:
-        d1 = (np.log(market_data.spot / option.strike) + (market_data.rate + 0.5 * market_data.sigma ** 2) * option.maturity) / (market_data.sigma * np.sqrt(option.maturity))
+        d1 = (np.log(market_data.spot / option.strike) + (market_data.rate - market_data.dividend_yield + 0.5 * market_data.sigma ** 2) * option.maturity) / (market_data.sigma * np.sqrt(option.maturity))
         d2 = d1 - market_data.sigma * np.sqrt(option.maturity)
 
         return d1, d2
 
 
-    def price(self, option: BaseOption, market_data: MarketData) -> np.float64:
+    def price(self, option: BaseOption, market_data: MarketData) -> float:
         d1, d2 = self._d1_d2(option, market_data)
 
         if (option.option_type == OptionType.CALL):
-            price = market_data.spot * norm.cdf(d1) - option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(d2)
-            return price
-        else:
-            price = option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(-d2) - market_data.spot * norm.cdf(-d1)
-            return price
+            price = market_data.spot * np.exp(-market_data.dividend_yield * option.maturity) * norm.cdf(d1) - option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(d2)
+            return float(price)
+        elif (option.option_type == OptionType.PUT):
+            price = option.strike * np.exp((-market_data.rate) * option.maturity) * norm.cdf(-d2) - market_data.spot * np.exp(-market_data.dividend_yield * option.maturity) * norm.cdf(-d1)
+            return float(price)
         
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list) -> Greeks:
+        else:
+            raise ValueError("The option type is not recognized")
+        
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None = None) -> Greeks:
 
         required = self._validate_required(greeks_list)
         bs_terms = self._precompute_terms(option, market_data, required)
@@ -82,10 +87,12 @@ class BlackScholesPricer(BasePricer):
         sigma = market_data.sigma
         T = option.maturity
         r = market_data.rate
+        q = market_data.dividend_yield
         sqrtT = np.sqrt(T)
         disc = np.exp(-r*T)
+        disc_q = np.exp(-market_data.dividend_yield * option.maturity)
 
-        return BSTerms(S, K, sigma, T, r, sqrtT, disc, norm_pdf_d1, norm_cdf_d1, norm_cdf_d2)
+        return BSTerms(S, K, sigma, T, r, q, sqrtT, disc, disc_q, norm_pdf_d1, norm_cdf_d1, norm_cdf_d2)
 
     def _compute_greeks(self, option: BaseOption, required, bs_terms: BSTerms) -> Greeks:
         delta = None
@@ -96,27 +103,35 @@ class BlackScholesPricer(BasePricer):
         
         if "delta" in required:            
             if option.option_type == OptionType.CALL:
-                delta = float(bs_terms.norm_cdf_d1)
+                delta = float(bs_terms.norm_cdf_d1 * bs_terms.disc_q)
             else:
-                delta = float(bs_terms.norm_cdf_d1 - 1)
+                delta = float((bs_terms.norm_cdf_d1 - 1) * bs_terms.disc_q)
         
         if "theta" in required:
             if option.option_type == OptionType.CALL:
-                theta = float(-((bs_terms.S * bs_terms.norm_pdf_d1 * bs_terms.sigma) / (2 * bs_terms.sqrtT)) - bs_terms.r * bs_terms.K * bs_terms.disc * bs_terms.norm_cdf_d2)
+                theta = float(
+                    -((bs_terms.S * bs_terms.disc_q * bs_terms.norm_pdf_d1 * bs_terms.sigma) / (2 * bs_terms.sqrtT))
+                    - bs_terms.r * bs_terms.K * bs_terms.disc * bs_terms.norm_cdf_d2
+                    + bs_terms.q * bs_terms.S * bs_terms.disc_q * bs_terms.norm_cdf_d1
+                )
+
             else:
-                theta = float(-((bs_terms.S * bs_terms.norm_pdf_d1 * bs_terms.sigma) / (2 * bs_terms.sqrtT)) + bs_terms.r * bs_terms.K * bs_terms.disc * (1 - bs_terms.norm_cdf_d2))
-        
+                theta = float(
+                    -((bs_terms.S * bs_terms.disc_q * bs_terms.norm_pdf_d1 * bs_terms.sigma) / (2 * bs_terms.sqrtT))
+                    + bs_terms.r * bs_terms.K * bs_terms.disc * (1 - bs_terms.norm_cdf_d2)
+                    - bs_terms.q * bs_terms.S * bs_terms.disc_q * (1 - bs_terms.norm_cdf_d1)
+                )        
         if "gamma" in required:
-            gamma = float(bs_terms.norm_pdf_d1 / (bs_terms.S * bs_terms.sigma * bs_terms.sqrtT))
+            gamma = float((bs_terms.norm_pdf_d1 / (bs_terms.S * bs_terms.sigma * bs_terms.sqrtT)) * bs_terms.disc_q)
         
         if "vega" in required:
-            vega = float(bs_terms.S * bs_terms.sqrtT * bs_terms.norm_pdf_d1)
+            vega = float(bs_terms.S * bs_terms.sqrtT * bs_terms.norm_pdf_d1 * bs_terms.disc_q)
         
         if "rho" in required:
             if option.option_type == OptionType.CALL:
                 rho = float(bs_terms.K * bs_terms.T * bs_terms.disc * bs_terms.norm_cdf_d2)
             else:
-                rho = float(bs_terms.K * bs_terms.T * bs_terms.disc * (1 - bs_terms.norm_cdf_d2))
+                rho = -float(bs_terms.K * bs_terms.T * bs_terms.disc * (1 - bs_terms.norm_cdf_d2))
 
         return Greeks(
             delta=delta,

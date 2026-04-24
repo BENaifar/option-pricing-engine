@@ -1,12 +1,13 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
 
+from src.greeks.greeks_bumps_config import GreeksBumpsConfig
 from src.instruments.base_option import BaseOption
 from src.greeks.greeks import GREEKS, Greeks
 from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
-from src.greeks.finite_differences_bumper import FiniteDifferencesBumper
+from src.market_data.market_bumper import MarketBumper
 from src.models.base_model import BaseModel
 from src.pricers.base_pricer import BasePricer
 from src.numerics.base_scheme import BaseScheme
@@ -18,16 +19,41 @@ class MonteCarloPricer(BasePricer):
     model: BaseModel
     scheme : BaseScheme
     paths: int
-    seed: int
-    finite_differences_greeks: FiniteDifferencesGreeks    
-    finite_differences_bumper: FiniteDifferencesBumper
     n_steps: int = 64
+    seed: int = 42
+    finite_differences_greeks: FiniteDifferencesGreeks = field(default_factory=lambda: FiniteDifferencesGreeks(greek_bumps_config=GreeksBumpsConfig()))
+    finite_differences_bumper: MarketBumper = field(default_factory=lambda: MarketBumper(greek_bumps_config=GreeksBumpsConfig()))
+    
 
     def __post_init__(self):
-        if self.paths <= 0 or not isinstance(self.paths, (int, np.integer)):
-            raise ValueError("Paths can only be positive and over 0")
-        if self.seed is None or self.seed < 0 or not isinstance(self.seed, (int, np.integer)):
-            raise ValueError("Seed must be provided")
+        # Validate paths
+        if not isinstance(self.paths, int) or self.paths <= 0:
+            raise ValueError("Paths must be a positive integer greater than 0")
+        
+        # Validate seed
+        if self.seed is None or not isinstance(self.seed, (int, np.integer)) or self.seed < 0:
+            raise ValueError("Seed must be a non-negative integer")
+        
+        # Validate n_steps
+        if not isinstance(self.n_steps, int) or self.n_steps <= 0:
+            raise ValueError("n_steps must be a positive integer greater than 0")
+        
+        # Validate model
+        if not isinstance(self.model, BaseModel):
+            raise TypeError("model must be an instance of BaseModel")
+        
+        # Validate scheme
+        if not isinstance(self.scheme, BaseScheme):
+            raise TypeError("scheme must be an instance of BaseScheme")
+        
+        # Validate finite_differences_greeks
+        if not isinstance(self.finite_differences_greeks, FiniteDifferencesGreeks):
+            raise TypeError("finite_differences_greeks must be an instance of FiniteDifferencesGreeks")
+        
+        # Validate finite_differences_bumper
+        if not isinstance(self.finite_differences_bumper, MarketBumper):
+            raise TypeError("finite_differences_bumper must be an instance of MarketBumper")
+        
         self.rng = np.random.default_rng(self.seed)
         
 
@@ -80,7 +106,7 @@ class MonteCarloPricer(BasePricer):
         discounted_price = np.mean(payoffs) * np.exp((-market_data.rate) * option.maturity)
         return discounted_price
     
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list[GREEKS] | None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list[GREEKS] | None = None) -> Greeks:
         required = self._validate_required(greeks_list=greeks_list)
 
         simulation_result = self.simulate(option, market_data)
