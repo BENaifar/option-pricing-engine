@@ -7,7 +7,7 @@ from src.instruments.european_option import EuropeanOption
 from src.instruments.american_option import AmericanOption
 from src.instruments.option_types import OptionType
 from src.market_data.market_bumper import MarketBumper
-from src.market_data.market_data import MarketData
+from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.models.black_scholes_model import BlackScholesModel
 from src.numerics.euler_scheme import EulerScheme
 from src.pricers.binomial_tree import BinomialTree
@@ -16,7 +16,7 @@ from src.pricers.monte_carlo import MonteCarloPricer
 
 @pytest.fixture
 def standard_market():
-    return MarketData(
+    return MarketDataSnapshot(
         spot=100,
         rate=0.05,
         sigma=0.2,
@@ -29,7 +29,7 @@ def standard_market():
 # amr put: 6.663466131715539
 @pytest.fixture
 def standard_market_with_dividend():
-    return MarketData(
+    return MarketDataSnapshot(
         spot=100,
         rate=0.05,
         sigma=0.2,

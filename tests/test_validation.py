@@ -5,7 +5,7 @@ from src.instruments.option_types import OptionType
 from src.models.black_scholes_model import BlackScholesModel
 from src.numerics.euler_scheme import EulerScheme
 from src.pricers.monte_carlo import MonteCarloPricer
-from src.market_data.market_data import MarketData
+from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.pricers.binomial_tree import BinomialTree
 
 def test_binomial_tree_steps_validation():
@@ -41,21 +41,21 @@ def test_binomial_tree_market_bumper_validation():
 
 def test_market_data_spot_validation():
     with pytest.raises(ValueError):
-        market_data = MarketData(0, 0.05, 0.2, 0.02)
+        market_data = MarketDataSnapshot(0, 0.05, 0.2, 0.02)
     
     with pytest.raises(ValueError):
-        market_data = MarketData(-200, 0.05, 0.2, 0.02)
+        market_data = MarketDataSnapshot(-200, 0.05, 0.2, 0.02)
 
 def test_market_data_volatility_validation():
     with pytest.raises(ValueError):
-        market_data = MarketData(100, 0.05, 0, 0.02)
+        market_data = MarketDataSnapshot(100, 0.05, 0, 0.02)
 
     with pytest.raises(ValueError):
-        market_data = MarketData(100, 0.05, -0.2, 0.02)
+        market_data = MarketDataSnapshot(100, 0.05, -0.2, 0.02)
 
 def test_market_data_dividend_yield():
     with pytest.raises(ValueError):
-        market_data = MarketData(1000, 0.05, 0.2, -0.1)
+        market_data = MarketDataSnapshot(1000, 0.05, 0.2, -0.1)
 
 
 def test_monte_carlo_paths_validation():

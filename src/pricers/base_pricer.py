@@ -4,18 +4,18 @@ from dataclasses import dataclass
 import numpy as np
 
 from src.instruments.base_option import BaseOption
-from src.market_data.market_data import MarketData
+from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.greeks.greeks import Greeks, GREEKS
 
 @dataclass
 class BasePricer(ABC):
 
     @abstractmethod
-    def price(self, option: BaseOption, market_data: MarketData) -> float:
+    def price(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
         pass
 
     @abstractmethod
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None = None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list | None = None) -> Greeks:
         pass
 
     def _validate_required(self, greeks_list):

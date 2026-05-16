@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 
-@dataclass
-class MarketData:
+@dataclass(frozen=True)
+class MarketDataSnapshot:
     spot: float
     rate: float
     sigma: float
     dividend_yield: float
+    timestamp: str | None = None
+    source: str | None = None
 
     def __post_init__(self):
         if self.spot <= 0:

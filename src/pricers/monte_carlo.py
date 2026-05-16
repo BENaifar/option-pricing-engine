@@ -11,7 +11,7 @@ from src.market_data.market_bumper import MarketBumper
 from src.models.base_model import BaseModel
 from src.pricers.base_pricer import BasePricer
 from src.numerics.base_scheme import BaseScheme
-from src.market_data.market_data import MarketData
+from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.simulations.simulation_result import SimulationResult
 
 @dataclass
@@ -57,7 +57,7 @@ class MonteCarloPricer(BasePricer):
         self.rng = np.random.default_rng(self.seed)
         
 
-    def simulate(self, option: BaseOption, market_data: MarketData, Z: np.ndarray | None = None) -> SimulationResult:
+    def simulate(self, option: BaseOption, market_data: MarketDataSnapshot, Z: np.ndarray | None = None) -> SimulationResult:
         dt = option.maturity / self.n_steps
 
         if Z is None:
@@ -83,11 +83,11 @@ class MonteCarloPricer(BasePricer):
 
         return SimulationResult(S, Z, dt)  # type: ignore
     
-    def price(self, option: BaseOption, market_data: MarketData):
+    def price(self, option: BaseOption, market_data: MarketDataSnapshot):
         simulation_result = self.simulate(option, market_data)
         return self._discounted_payoff(option, market_data, simulation_result)
 
-    def _discounted_payoff(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult):
+    def _discounted_payoff(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult):
         payoffs = option.payoff(simulation_result.terminal_paths)
         discounted_price = np.mean(payoffs) * np.exp((-market_data.rate) * option.maturity)
         return discounted_price
@@ -95,18 +95,18 @@ class MonteCarloPricer(BasePricer):
     def _repriced_with_normals(
         self,
         option: BaseOption,
-        market: MarketData,
+        market: MarketDataSnapshot,
         normals: np.ndarray
     ) -> float:
         result = self.simulate(option, market, normals)
         return self._discounted_payoff(option, market, result)
     
-    def _price_from_paths(self, option: BaseOption, market_data: MarketData, paths):
+    def _price_from_paths(self, option: BaseOption, market_data: MarketDataSnapshot, paths):
         payoffs = option.payoff(paths)
         discounted_price = np.mean(payoffs) * np.exp((-market_data.rate) * option.maturity)
         return discounted_price
     
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list[GREEKS] | None = None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list[GREEKS] | None = None) -> Greeks:
         required = self._validate_required(greeks_list=greeks_list)
 
         simulation_result = self.simulate(option, market_data)
@@ -133,7 +133,7 @@ class MonteCarloPricer(BasePricer):
 
         return Greeks(**greeks_values)
 
-    def _rho(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> float:
+    def _rho(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
         rate_up, rate_down = self.finite_differences_bumper.bump_rate(market_data)
 
         price_rate_up = self._repriced_with_normals(option, rate_up, simulation_result.normals)
@@ -143,7 +143,7 @@ class MonteCarloPricer(BasePricer):
 
         return rho
 
-    def _vega(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> float:
+    def _vega(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
         volatility_up, volatility_down = self.finite_differences_bumper.bump_volatility(market_data)
 
         price_vol_incr = self._repriced_with_normals(option, volatility_up, simulation_result.normals)
@@ -153,7 +153,7 @@ class MonteCarloPricer(BasePricer):
 
         return float(vega)
 
-    def _theta(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> float:
+    def _theta(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
         dt, option_short, option_long = self.finite_differences_bumper.bump_time(option)
 
         price_short = self._repriced_with_normals(option_short, market_data, simulation_result.normals)
@@ -163,7 +163,7 @@ class MonteCarloPricer(BasePricer):
 
         return float(theta)
 
-    def _spot_greeks(self, option: BaseOption, market_data: MarketData, simulation_result: SimulationResult) -> tuple[float, float]:
+    def _spot_greeks(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> tuple[float, float]:
         base_price = self._price_from_paths(option, market_data, simulation_result.terminal_paths)
 
         market_down, market_up = self.finite_differences_bumper.bump_spot(market_data)

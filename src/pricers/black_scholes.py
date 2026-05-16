@@ -5,7 +5,7 @@ from scipy.stats import norm
 
 from src.instruments.base_option import BaseOption
 from src.instruments.option_types import OptionType
-from src.market_data.market_data import MarketData
+from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.pricers.base_pricer import BasePricer
 from src.greeks.greeks import Greeks, GREEKS
 
@@ -27,14 +27,14 @@ class BSTerms:
 @dataclass
 class BlackScholesPricer(BasePricer):
 
-    def _d1_d2(self, option: BaseOption, market_data: MarketData) -> tuple[float, float]:
+    def _d1_d2(self, option: BaseOption, market_data: MarketDataSnapshot) -> tuple[float, float]:
         d1 = (np.log(market_data.spot / option.strike) + (market_data.rate - market_data.dividend_yield + 0.5 * market_data.sigma ** 2) * option.maturity) / (market_data.sigma * np.sqrt(option.maturity))
         d2 = d1 - market_data.sigma * np.sqrt(option.maturity)
 
         return d1, d2
 
 
-    def price(self, option: BaseOption, market_data: MarketData) -> float:
+    def price(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
         d1, d2 = self._d1_d2(option, market_data)
 
         if (option.option_type == OptionType.CALL):
@@ -47,7 +47,7 @@ class BlackScholesPricer(BasePricer):
         else:
             raise ValueError("The option type is not recognized")
         
-    def greeks(self, option: BaseOption, market_data: MarketData, greeks_list: list | None = None) -> Greeks:
+    def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list | None = None) -> Greeks:
 
         required = self._validate_required(greeks_list)
         bs_terms = self._precompute_terms(option, market_data, required)
@@ -67,7 +67,7 @@ class BlackScholesPricer(BasePricer):
         required = set(g.value for g in greeks_list)
         return required
 
-    def _precompute_terms(self, option: BaseOption, market_data: MarketData, required) -> BSTerms:
+    def _precompute_terms(self, option: BaseOption, market_data: MarketDataSnapshot, required) -> BSTerms:
         d1, d2 = self._d1_d2(option, market_data)
         norm_pdf_d1 = None
         norm_cdf_d1 = None

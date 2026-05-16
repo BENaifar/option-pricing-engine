@@ -2,14 +2,14 @@ from dataclasses import dataclass, replace
 
 from src.greeks.greeks_bumps_config import GreeksBumpsConfig
 from src.instruments.base_option import BaseOption
-from src.market_data.market_data import MarketData
+from src.market_data.market_data_snapshot import MarketDataSnapshot
 
 # TODO: standardize the returns up, down and change in all instanciations
 @dataclass
 class MarketBumper:
     greek_bumps_config: GreeksBumpsConfig
 
-    def bump_spot(self, market_data: MarketData):
+    def bump_spot(self, market_data: MarketDataSnapshot):
 
         market_down = replace(market_data, spot=(market_data.spot * (1 - self.greek_bumps_config.spot_rel)))
         market_up = replace(market_data, spot=(market_data.spot * (1 + self.greek_bumps_config.spot_rel)))
@@ -27,13 +27,13 @@ class MarketBumper:
         
         return dt, option_short, option_long
     
-    def bump_volatility(self, market_data: MarketData):
+    def bump_volatility(self, market_data: MarketDataSnapshot):
         volatility_up = replace(market_data, sigma=(market_data.sigma + self.greek_bumps_config.vol_abs))
         volatility_down = replace(market_data, sigma=(market_data.sigma - self.greek_bumps_config.vol_abs))
 
         return volatility_up,volatility_down
     
-    def bump_rate(self, market_data: MarketData):
+    def bump_rate(self, market_data: MarketDataSnapshot):
         rate_up = replace(market_data, rate=(market_data.rate + self.greek_bumps_config.rate_abs))
         rate_down = replace(market_data, rate=(market_data.rate - self.greek_bumps_config.rate_abs))
 
