@@ -1,34 +1,26 @@
-from dataclasses import dataclass, replace
-
 from src.market_data.curves.dividend_curve import DividendCurve
 from src.market_data.curves.yield_curve import YieldCurve
 from src.market_data.implied_vol_inversion_functs import price_fn_bs, price_fn_prime
+from src.market_data.models.iv_quote import IVQuote
+from src.market_data.models.option_quote import OptionQuote
 
+class ImpliedVolatilityBS:
 
-@dataclass
-class OptionQuote:
-    K: float
-    T: float
-    price: float
-
-
-class ImpliedVolatility:
     def get_vol(
         self,
-        option_quote,
-        spot,
+        option_quote: OptionQuote,
+        spot: float,
         yield_curve: YieldCurve,
         dividend_curve: DividendCurve,
         sigma_init: float = 0.2,
         tolerance: float = 1e-8,
         max_iter: int = 100
-    ) -> float:
+    ) -> IVQuote:
 
         sigma = sigma_init
 
         for _ in range(max_iter):
 
-            # Compute BS price
             model_price = price_fn_bs(
                 spot,
                 option_quote.K,
@@ -39,14 +31,16 @@ class ImpliedVolatility:
                 option_quote.type
             )
 
-            # Price error
             error = model_price - option_quote.price
 
-            # Converged
             if abs(error) < tolerance:
-                return sigma
+                return IVQuote(
+                    K=option_quote.K,
+                    T=option_quote.T,
+                    iv=sigma,
+                    option_type=option_quote.type
+                )
 
-            # Compute Vega
             vega = price_fn_prime(
                 spot,
                 option_quote.K,
@@ -56,22 +50,21 @@ class ImpliedVolatility:
                 option_quote.T
             )
 
-            # Avoid division by zero
             if abs(vega) < 1e-8:
                 raise ValueError(
-                    "Vega too small. Newton-Raphson unstable."
+                    f"Vega too small for K={option_quote.K}, "
+                    f"T={option_quote.T}"
                 )
 
-            # Newton-Raphson update
-            sigma = sigma - error / vega
+            sigma -= error / vega
 
-            # Safety clamp
             sigma = max(1e-4, sigma)
 
         raise ValueError(
-            "Implied volatility did not converge."
+            f"Implied volatility did not converge for "
+            f"K={option_quote.K}, T={option_quote.T}"
         )
-
+    
     def get_vols(
         self,
         option_quotes: list[OptionQuote],
@@ -81,19 +74,17 @@ class ImpliedVolatility:
         sigma_init: float = 0.2,
         tolerance: float = 1e-8,
         max_iter: int = 100
-    ) -> list[float]:
-        vols = []
-        for i in range(0, len(option_quotes)):
-            vol = self.get_vol(
-                option_quotes[i],
-                spot,
-                yield_curve,
-                dividend_curve,
-                sigma_init,
-                tolerance,
-                max_iter
+    ) -> list[IVQuote]:
+
+        return [
+            self.get_vol(
+                option_quote=q,
+                spot=spot,
+                yield_curve=yield_curve,
+                dividend_curve=dividend_curve,
+                sigma_init=sigma_init,
+                tolerance=tolerance,
+                max_iter=max_iter
             )
-
-            vols.append(vol)
-
-        return vols
+            for q in option_quotes
+        ]

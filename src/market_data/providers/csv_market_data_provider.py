@@ -10,74 +10,31 @@ from src.market_data.providers.base_market_data_provider import BaseMarketDataPr
 
 
 class CsvMarketDataProvider(BaseMarketDataProvider):
-    
-    def fetch(self, ticker: str) -> pd.DataFrame:
-        path = read_config("paths", "raw_data") + f"/{ticker}.csv"
-        
-        data = pd.read_csv(
-            path,
-            sep=",",
-            parse_dates=["Date"],
-            dayfirst=False,
-            index_col="Date"
-        ).sort_values(by=["Date"])
-
-        return data
-    
-    def fetch_spot(self, ticker: str):
-        path = read_config("paths", "raw_data_tickers") + f"/{ticker}.csv"
-        
-        data = pd.read_csv(
-            path,
-            sep=",",
-            parse_dates=["Date"],
-            dayfirst=False,
-            index_col="Date"
-        ).sort_values(by=["Date"])
-
-        return data
-    
-    def fetch_rate(self) -> pd.DataFrame:
+    def fetch_rate(self) -> dict:
         path = read_config("paths", "raw_data_rates")
-        
-        result = {
-            "maturities" : [],
-            "rates": []
-        }
+
+        dfs = {}
 
         for file in os.listdir(path):
             if file.endswith('.csv'):
                 full_path = os.path.join(path, file)
                 data = pd.read_csv(full_path, sep=",")
+
+                # extract maturity label (same logic you used)
+                maturity = file[3:-4]  # e.g. "DGS10" or similar
+
+                # convert last value
                 rate = float(pd.to_numeric(data.iloc[-1, -1]) / 100)
-                maturity = file[3:-4]
-                result["maturities"].append(maturity)
-                result["rates"].append(rate)
 
-        return pd.DataFrame(result)
-    
-    def fetch_dividend(self, ticker: str) -> pd.DataFrame:
-        path = read_config("paths", "raw_data_tickers") + f"/{ticker}_div.csv"
+                # create a proper DataFrame expected by build_rate_curve
+                df = pd.DataFrame(
+                    {maturity: [rate]},
+                    index=[pd.to_datetime("today").normalize()]  # or real date if available in file
+                )
 
-        data = pd.read_csv(
-            path,
-            parse_dates=["Date"],
-            dayfirst=False,
-        ).sort_values(by=['Date'])
+                dfs[maturity] = df
 
-        return data
-
-if __name__ == "__main__":
-    provider = CsvMarketDataProvider()
-
-    divs = provider.fetch_dividend('appl')
-
-    dates = divs["Date"].tolist()
-    dates = [d.date() for d in dates]
-    values = divs["Dividend($)"].tolist()
-
-    print(dates)
-    print(values)
+        return dfs
 
     
 
