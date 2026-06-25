@@ -7,6 +7,7 @@ from src.market_data.models.volatility_model import VolatilityModel
 
 @dataclass(frozen=True)
 class MarketDataSnapshot:
+    ticker: str
     spot: float
     rate: YieldCurve
     sigma: VolatilityModel

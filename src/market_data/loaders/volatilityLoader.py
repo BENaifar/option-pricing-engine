@@ -128,3 +128,14 @@ def get_quotes_by_strike_and_maturity(
         result.append(q)
 
     return result
+
+def get_maturities(quotes: list[OptionQuote]) -> list[float]:
+    """Extract all unique maturities from quotes and return sorted."""
+    maturities = sorted(set(q.T for q in quotes))
+    return maturities
+
+def get_strikes(quotes: list[OptionQuote]) -> list[float]:
+    """Extract all unique strikes from quotes and return sorted."""
+    strikes = sorted(set(q.K for q in quotes))
+    return strikes
+

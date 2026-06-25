@@ -6,10 +6,11 @@ from scipy.interpolate import interp1d
 
 from src.market_data.curves.volatility_smile_curve import VolatilitySmileCurve
 from src.market_data.curves.volatility_term_structure_curve import VolatilityTermStructureCurve
+from src.market_data.models.volatility_model import VolatilityModel
 
 
 @dataclass
-class VolatilitySurfaceBuilder:
+class VolatilitySurfaceBuilder(VolatilityModel):
     smiles: dict[float, VolatilitySmileCurve]
     terms: dict[float, VolatilityTermStructureCurve]
     times: list[float]
