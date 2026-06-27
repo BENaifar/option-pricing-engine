@@ -1,17 +1,9 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-
-import numpy as np
+from abc import ABC
+from dataclasses import dataclass
 
 from src.market_data.market_data_snapshot import MarketDataSnapshot
 
-@dataclass
+@dataclass(frozen=True)
 class BaseModel(ABC):
+    market_data: MarketDataSnapshot
 
-    @abstractmethod
-    def drift(self, price: float, time: float, market_data: MarketDataSnapshot) -> float:
-        pass
-
-    @abstractmethod
-    def diffusion(self, price: float, time:float, market_data: MarketDataSnapshot) -> float:
-        pass

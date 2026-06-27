@@ -8,12 +8,13 @@ from src.instruments.european_option import EuropeanOption
 from src.instruments.american_option import AmericanOption
 from src.instruments.option_types import OptionType
 
+from src.market_data.static_market_data_snapshot import MarketData
 from src.pricers.black_scholes import BlackScholesPricer
 from src.pricers.binomial_tree import BinomialTree
 from src.pricers.monte_carlo import MonteCarloPricer
 
 from src.models.black_scholes_model import BlackScholesModel
-from src.numerics.euler_scheme import EulerScheme
+from src.schemes.euler_scheme import EulerScheme
 
 
 # ---------------------------------------------------
@@ -48,28 +49,28 @@ american_pricers = [
     "market",
     [
         # near expiry
-        MarketDataSnapshot(100, 0.05, 0.20, 0.00),
+        MarketData(100, 0.05, 0.20, 0.00),
 
         # zero rates
-        MarketDataSnapshot(100, 0.00, 0.20, 0.00),
+        MarketData(100, 0.00, 0.20, 0.00),
 
         # high rates
-        MarketDataSnapshot(100, 0.20, 0.20, 0.00),
+        MarketData(100, 0.20, 0.20, 0.00),
 
         # very low vol
-        MarketDataSnapshot(100, 0.05, 0.0001, 0.00),
+        MarketData(100, 0.05, 0.0001, 0.00),
 
         # very high vol
-        MarketDataSnapshot(100, 0.05, 1.50, 0.00),
+        MarketData(100, 0.05, 1.50, 0.00),
 
         # dividend heavy
-        MarketDataSnapshot(100, 0.05, 0.20, 0.10),
+        MarketData(100, 0.05, 0.20, 0.10),
 
         # deep ITM
-        MarketDataSnapshot(200, 0.05, 0.20, 0.00),
+        MarketData(200, 0.05, 0.20, 0.00),
 
         # deep OTM
-        MarketDataSnapshot(50, 0.05, 0.20, 0.00),
+        MarketData(50, 0.05, 0.20, 0.00),
     ]
 )
 @pytest.mark.parametrize("pricer", european_pricers)
@@ -91,7 +92,7 @@ def test_extreme_regimes_european_call(pricer, market):
 @pytest.mark.parametrize("pricer", european_pricers)
 def test_extreme_regimes_european_put(pricer):
 
-    market = MarketDataSnapshot(
+    market = MarketData(
         spot=50,          # deep ITM put
         rate=0.05,
         sigma=1.50,
@@ -118,7 +119,7 @@ def test_extreme_regimes_european_put(pricer):
 @pytest.mark.parametrize("pricer", european_pricers)
 def test_near_zero_vol_call_behaves_like_discounted_intrinsic(pricer):
 
-    market = MarketDataSnapshot(
+    market = MarketData(
         spot=120,
         rate=0.00,
         sigma=0.0001,
@@ -143,8 +144,8 @@ def test_near_zero_vol_call_behaves_like_discounted_intrinsic(pricer):
 @pytest.mark.parametrize("pricer", european_pricers)
 def test_high_vol_call_more_expensive_than_low_vol(pricer):
 
-    low_vol = MarketDataSnapshot(100, 0.05, 0.10, 0.00)
-    high_vol = MarketDataSnapshot(100, 0.05, 1.00, 0.00)
+    low_vol = MarketData(100, 0.05, 0.10, 0.00)
+    high_vol = MarketData(100, 0.05, 1.00, 0.00)
 
     option = EuropeanOption(100, 1.0, OptionType.CALL)
 
@@ -161,7 +162,7 @@ def test_high_vol_call_more_expensive_than_low_vol(pricer):
 @pytest.mark.parametrize("pricer", american_pricers)
 def test_american_put_extreme_deep_itm(pricer):
 
-    market = MarketDataSnapshot(
+    market = MarketData(
         spot=20,
         rate=0.05,
         sigma=0.20,
@@ -183,7 +184,7 @@ def test_american_put_extreme_deep_itm(pricer):
 @pytest.mark.parametrize("pricer", american_pricers)
 def test_american_call_with_large_dividend_has_value(pricer):
 
-    market = MarketDataSnapshot(
+    market = MarketData(
         spot=100,
         rate=0.05,
         sigma=0.20,
@@ -209,7 +210,7 @@ def test_american_call_with_large_dividend_has_value(pricer):
 @pytest.mark.parametrize("pricer", european_pricers)
 def test_extreme_regimes_greeks_finite(pricer):
 
-    market = MarketDataSnapshot(
+    market = MarketData(
         spot=100,
         rate=0.00,
         sigma=1.20,

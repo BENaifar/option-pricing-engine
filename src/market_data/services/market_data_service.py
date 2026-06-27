@@ -11,7 +11,7 @@ from src.market_data.curves.yield_curve import YieldCurve
 from src.market_data.loaders.dividend_loader import build_dividend_curve_inputs
 from src.market_data.loaders.rates_loader import build_rate_curve
 from src.market_data.loaders.spot_loader import load_spot
-from src.market_data.loaders.volatilityLoader import get_all_option_quotes, get_maturities, get_strikes
+from src.market_data.loaders.volatilityLoader import get_all_option_quotes
 from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.market_data.models.iv_quote import IVQuote
 from src.market_data.models.option_quote import OptionQuote

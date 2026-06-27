@@ -8,16 +8,14 @@ from src.instruments.base_option import BaseOption
 from src.greeks.greeks import GREEKS, Greeks
 from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
 from src.market_data.market_bumper import MarketBumper
-from src.models.base_model import BaseModel
 from src.pricers.base_pricer import BasePricer
-from src.numerics.base_scheme import BaseScheme
-from src.market_data.market_data_snapshot import MarketDataSnapshot
+from src.process.base_process import StochasticProcess
+from src.schemes.euler_scheme import EulerScheme
 from src.simulations.simulation_result import SimulationResult
 
 @dataclass
 class MonteCarloPricer(BasePricer):
-    model: BaseModel
-    scheme : BaseScheme
+    scheme : EulerScheme
     paths: int
     n_steps: int = 64
     seed: int = 42
@@ -38,14 +36,6 @@ class MonteCarloPricer(BasePricer):
         if not isinstance(self.n_steps, int) or self.n_steps <= 0:
             raise ValueError("n_steps must be a positive integer greater than 0")
         
-        # Validate model
-        if not isinstance(self.model, BaseModel):
-            raise TypeError("model must be an instance of BaseModel")
-        
-        # Validate scheme
-        if not isinstance(self.scheme, BaseScheme):
-            raise TypeError("scheme must be an instance of BaseScheme")
-        
         # Validate finite_differences_greeks
         if not isinstance(self.finite_differences_greeks, FiniteDifferencesGreeks):
             raise TypeError("finite_differences_greeks must be an instance of FiniteDifferencesGreeks")
@@ -57,7 +47,7 @@ class MonteCarloPricer(BasePricer):
         self.rng = np.random.default_rng(self.seed)
         
 
-    def simulate(self, option: BaseOption, market_data: MarketDataSnapshot, Z: np.ndarray | None = None) -> SimulationResult:
+    def simulate(self, option: BaseOption, process: StochasticProcess, spot: float, Z: np.ndarray | None = None) -> SimulationResult:
         dt = option.maturity / self.n_steps
 
         if Z is None:
@@ -65,105 +55,105 @@ class MonteCarloPricer(BasePricer):
         
         brownian_increment = Z * np.sqrt(dt)
         
-        S = np.full(self.paths, market_data.spot, dtype=float)
+        S = np.full(self.paths, spot, dtype=float)
 
         step = self.scheme.step
-        model = self.model
         n_steps = self.n_steps
 
         for t in range(n_steps):
             S = step(
-                model,
-                market_data,
-                S,
-                t * dt,
-                dt,
-                brownian_increment[:, t]
+                process=process,
+                price=spot,
+                t=dt * t,
+                K = option.strike,
+                dt=dt,
+                brownian_increment=brownian_increment[:, t]
             )
 
-        return SimulationResult(S, Z, dt)  # type: ignore
+        return SimulationResult(S, Z, dt) # type: ignore
     
-    def price(self, option: BaseOption, market_data: MarketDataSnapshot):
-        simulation_result = self.simulate(option, market_data)
-        return self._discounted_payoff(option, market_data, simulation_result)
+    def price(self, option: BaseOption, process: StochasticProcess, spot: float):
+        simulation_result = self.simulate(option, process, spot)
+        return self._discounted_payoff(option, process, simulation_result, spot)
 
-    def _discounted_payoff(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult):
+    def _discounted_payoff(self, option: BaseOption, process: StochasticProcess, simulation_result: SimulationResult, spot):
         payoffs = option.payoff(simulation_result.terminal_paths)
-        discounted_price = np.mean(payoffs) * np.exp((-market_data.rate) * option.maturity)
+        r = process.drift(spot, option.maturity) / spot
+        discounted_price = np.mean(payoffs) * np.exp((-r) * option.maturity)
         return discounted_price
     
-    def _repriced_with_normals(
-        self,
-        option: BaseOption,
-        market: MarketDataSnapshot,
-        normals: np.ndarray
-    ) -> float:
-        result = self.simulate(option, market, normals)
-        return self._discounted_payoff(option, market, result)
+    # def _repriced_with_normals(
+    #     self,
+    #     option: BaseOption,
+    #     market: MarketDataSnapshot,
+    #     normals: np.ndarray
+    # ) -> float:
+    #     result = self.simulate(option, market, normals)
+    #     return self._discounted_payoff(option, market, result)
     
-    def _price_from_paths(self, option: BaseOption, market_data: MarketDataSnapshot, paths):
-        payoffs = option.payoff(paths)
-        discounted_price = np.mean(payoffs) * np.exp((-market_data.rate) * option.maturity)
-        return discounted_price
+    # def _price_from_paths(self, option: BaseOption, market_data: MarketDataSnapshot, paths):
+    #     payoffs = option.payoff(paths)
+    #     discounted_price = np.mean(payoffs) * np.exp((-market_data.rate) * option.maturity)
+    #     return discounted_price
     
-    def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list[GREEKS] | None = None) -> Greeks:
-        required = self._validate_required(greeks_list=greeks_list)
+    # def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list[GREEKS] | None = None) -> Greeks:
+    #     required = self._validate_required(greeks_list=greeks_list)
 
-        simulation_result = self.simulate(option, market_data)
+    #     simulation_result = self.simulate(option, market_data)
 
-        greeks_values: dict[str, Optional[float]] = {
-            'delta': None,
-            'gamma': None,
-            'theta': None,
-            'vega': None,
-            'rho': None
-        }
+    #     greeks_values: dict[str, Optional[float]] = {
+    #         'delta': None,
+    #         'gamma': None,
+    #         'theta': None,
+    #         'vega': None,
+    #         'rho': None
+    #     }
 
-        if GREEKS.DELTA in required or GREEKS.GAMMA in required:
-            greeks_values['delta'], greeks_values['gamma'] = self._spot_greeks(option, market_data, simulation_result)
+    #     if GREEKS.DELTA in required or GREEKS.GAMMA in required:
+    #         greeks_values['delta'], greeks_values['gamma'] = self._spot_greeks(option, market_data, simulation_result)
 
-        if GREEKS.THETA in required:
-            greeks_values['theta'] = self._theta(option, market_data, simulation_result)
+    #     if GREEKS.THETA in required:
+    #         greeks_values['theta'] = self._theta(option, market_data, simulation_result)
         
-        if GREEKS.VEGA in required:
-            greeks_values['vega'] = self._vega(option, market_data, simulation_result)
+    #     if GREEKS.VEGA in required:
+    #         greeks_values['vega'] = self._vega(option, market_data, simulation_result)
 
-        if GREEKS.RHO in required:
-            greeks_values['rho'] = self._rho(option, market_data, simulation_result)
+    #     if GREEKS.RHO in required:
+    #         greeks_values['rho'] = self._rho(option, market_data, simulation_result)
 
-        return Greeks(**greeks_values)
+    #     return Greeks(**greeks_values)
 
-    def _rho(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
-        rate_up, rate_down = self.finite_differences_bumper.bump_rate(market_data)
+    # def _rho(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
+    #     rate_up, rate_down = self.finite_differences_bumper.bump_rate(market_data)
 
-        price_rate_up = self._repriced_with_normals(option, rate_up, simulation_result.normals)
-        price_rate_down = self._repriced_with_normals(option, rate_down, simulation_result.normals)
+    #     price_rate_up = self._repriced_with_normals(option, rate_up, simulation_result.normals)
+    #     price_rate_down = self._repriced_with_normals(option, rate_down, simulation_result.normals)
 
-        rho = self.finite_differences_greeks.rho(price_rate_up, price_rate_down)
+    #     rho = self.finite_differences_greeks.rho(price_rate_up, price_rate_down)
 
-        return rho
+    #     return rho
 
-    def _vega(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
-        volatility_up, volatility_down = self.finite_differences_bumper.bump_volatility(market_data)
+    # def _vega(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
+    #     volatility_up, volatility_down = self.finite_differences_bumper.bump_volatility(market_data)
 
-        price_vol_incr = self._repriced_with_normals(option, volatility_up, simulation_result.normals)
-        price_vol_decr = self._repriced_with_normals(option, volatility_down, simulation_result.normals)
+    #     price_vol_incr = self._repriced_with_normals(option, volatility_up, simulation_result.normals)
+    #     price_vol_decr = self._repriced_with_normals(option, volatility_down, simulation_result.normals)
 
-        vega = self.finite_differences_greeks.vega(price_vol_incr, price_vol_decr)
+    #     vega = self.finite_differences_greeks.vega(price_vol_incr, price_vol_decr)
 
-        return float(vega)
+    #     return float(vega)
 
-    def _theta(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
-        dt, option_short, option_long = self.finite_differences_bumper.bump_time(option)
+    # def _theta(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> float:
+    #     dt, option_short, option_long = self.finite_differences_bumper.bump_time(option)
 
-        price_short = self._repriced_with_normals(option_short, market_data, simulation_result.normals)
-        price_long = self._repriced_with_normals(option_long, market_data, simulation_result.normals)
+    #     price_short = self._repriced_with_normals(option_short, market_data, simulation_result.normals)
+    #     price_long = self._repriced_with_normals(option_long, market_data, simulation_result.normals)
 
-        theta = self.finite_differences_greeks.theta(dt, price_short, price_long)
+    #     theta = self.finite_differences_greeks.theta(dt, price_short, price_long)
 
-        return float(theta)
+    #     return float(theta)
 
-    def _spot_greeks(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> tuple[float, float]:
+    # def _spot_greeks(self, option: BaseOption, market_data: MarketDataSnapshot, simulation_result: SimulationResult) -> tuple[float, float]:
         base_price = self._price_from_paths(option, market_data, simulation_result.terminal_paths)
 
         market_down, market_up = self.finite_differences_bumper.bump_spot(market_data)

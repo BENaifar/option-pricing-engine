@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
@@ -8,15 +10,36 @@ from src.instruments.american_option import AmericanOption
 from src.instruments.option_types import OptionType
 from src.market_data.market_bumper import MarketBumper
 from src.market_data.market_data_snapshot import MarketDataSnapshot
+from src.market_data.providers.yahoo_market_data_provider import YahooMarketDataProvider
+from src.market_data.services.market_data_service import MarketDataService
+from src.market_data.static_market_data_snapshot import MarketData
 from src.models.black_scholes_model import BlackScholesModel
-from src.numerics.euler_scheme import EulerScheme
+from src.schemes.euler_scheme import EulerScheme
 from src.pricers.binomial_tree import BinomialTree
 from src.pricers.black_scholes import BlackScholesPricer
 from src.pricers.monte_carlo import MonteCarloPricer
 
 @pytest.fixture
+def valuation_date():
+    return datetime(2025, 1, 1)
+
+
+@pytest.fixture
+def provider():
+    return YahooMarketDataProvider()
+
+
+@pytest.fixture
+def service(provider, valuation_date):
+    return MarketDataService(
+        provider=provider,
+        ticker="AAPL",
+        valuation_at=valuation_date,
+    )
+
+@pytest.fixture
 def standard_market():
-    return MarketDataSnapshot(
+    return MarketData(
         spot=100,
         rate=0.05,
         sigma=0.2,
@@ -29,7 +52,7 @@ def standard_market():
 # amr put: 6.663466131715539
 @pytest.fixture
 def standard_market_with_dividend():
-    return MarketDataSnapshot(
+    return MarketData(
         spot=100,
         rate=0.05,
         sigma=0.2,

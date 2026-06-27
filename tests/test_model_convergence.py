@@ -1,7 +1,7 @@
 import pytest
 
 from src.models.black_scholes_model import BlackScholesModel
-from src.numerics.euler_scheme import EulerScheme
+from src.schemes.euler_scheme import EulerScheme
 from src.pricers.binomial_tree import BinomialTree
 from src.pricers.monte_carlo import MonteCarloPricer
 

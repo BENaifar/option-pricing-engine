@@ -1,18 +1,19 @@
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 
 import numpy as np
 
 from src.instruments.base_option import BaseOption
-from src.market_data.market_data_snapshot import MarketDataSnapshot
 from src.pricers.base_pricer import BasePricer
 from src.greeks.greeks import Greeks, GREEKS
 from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
 from src.greeks.greeks_bumps_config import GreeksBumpsConfig
 from src.market_data.market_bumper import MarketBumper
+from src.process.base_process import StochasticProcess
+from src.schemes.binomial_tree_scheme import BinomialTreeScheme
 
 @dataclass
 class BinomialTree(BasePricer):
+    scheme: BinomialTreeScheme
     steps: int = 1000
     finite_differences_greeks: FiniteDifferencesGreeks = field(default_factory=lambda: FiniteDifferencesGreeks(greek_bumps_config=GreeksBumpsConfig()))
     finite_differences_bumper: MarketBumper = field(default_factory=lambda: MarketBumper(greek_bumps_config=GreeksBumpsConfig()))
@@ -28,129 +29,120 @@ class BinomialTree(BasePricer):
         if not isinstance(self.finite_differences_bumper, MarketBumper):
             raise TypeError("finite_differences_bumper must be an instance of MarketBumper")
 
-
-    def _u_d(self, option: BaseOption, market_data: MarketDataSnapshot) -> tuple[float, float]:
-        u = np.exp(market_data.sigma * np.sqrt(option.maturity / self.steps))
-        d = 1 / u
-        return float(u), float(d)
-    
-    #To modify using models drift and diffusion for later time dependent calculations
-    def calculate_probability(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
-        u, d = self._u_d(option, market_data)
-        return (np.exp((market_data.rate - market_data.dividend_yield) * (option.maturity / self.steps)) - d) / (u - d)
-
-    def build_tree(self, option:BaseOption, market_data: MarketDataSnapshot) -> np.ndarray:
-        u, d = self._u_d(option, market_data)
-
+    def build_tree(self, option:BaseOption, process: StochasticProcess, spot: float) -> np.ndarray:
         tree = np.zeros((self.steps + 1, self.steps + 1))
+        dt = option.maturity / self.steps
 
-        for i in range(self.steps + 1):
+        for i in range(self.steps + 1): 
+            _, u, d = self.scheme.step(spot, dt * i, dt, option.strike, process)
             j = np.arange(i + 1)
-            tree[j, i] = market_data.spot * (u ** (i - j)) * (d ** j)
+            tree[j, i] = spot * (u ** (i - j)) * (d ** j)
         
         return tree
     
-    def build_european_payoff_tree(self, option: BaseOption, market_data: MarketDataSnapshot) -> np.ndarray:
+    def build_european_payoff_tree(self, option: BaseOption, process: StochasticProcess, spot: float) -> np.ndarray:
         dt = option.maturity / self.steps
-        probability = self.calculate_probability(option, market_data)
-
-        tree = self.build_tree(option, market_data)
+        tree = self.build_tree(option, process, spot)
         option_payoffs = np.zeros((self.steps + 1, self.steps + 1))
         option_payoffs[:, -1] = option.payoff(tree[:, -1])
 
         for i in range(self.steps, 0, -1):
             j = np.arange(i)
-            option_payoffs[j, i - 1] = np.exp(-market_data.rate * dt) * (probability * option_payoffs[j, i] + (1 - probability) * option_payoffs[j + 1, i])
+            p, _, _ = self.scheme.step(spot, dt * i, dt, option.strike, process)
+            r = process.diffusion(spot, dt * i, option.strike) / spot
+            option_payoffs[j, i - 1] = np.exp(-r * dt) * (p * option_payoffs[j, i] + (1 - p) * option_payoffs[j + 1, i])
         
         return option_payoffs
     
-    def build_american_payoff_tree(self, option: BaseOption, market_data: MarketDataSnapshot) -> np.ndarray:
+    def build_american_payoff_tree(self, option: BaseOption, process: StochasticProcess, spot: float) -> np.ndarray:
         dt = option.maturity / self.steps
-        probability = self.calculate_probability(option, market_data)
 
-        tree = self.build_tree(option, market_data)
+        tree = self.build_tree(option, process, spot)
         option_payoffs = np.zeros((self.steps + 1, self.steps + 1))
         option_payoffs[:, -1] = option.payoff(tree[:, -1])
 
         for i in range(self.steps, 0, -1):
             j = np.arange(i)
-            new_payoff = np.exp(-market_data.rate * dt) * (probability * option_payoffs[j, i] + (1 - probability) * option_payoffs[j + 1, i])
+            p, _, _ = self.scheme.step(spot, dt * i, dt, option.strike, process)
+            r = process.diffusion(spot, dt * i, option.strike) / spot
+
+            new_payoff = np.exp(-r * dt) * (p * option_payoffs[j, i] + (1 - p) * option_payoffs[j + 1, i])
             option_payoffs[j, i - 1] = np.maximum(option.payoff(tree[j , i - 1]), new_payoff)
         
         return option_payoffs
     
-    def price(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
+    def price(self, option: BaseOption, process: StochasticProcess, spot: float) -> float:
         if option.is_american():
-            return self.build_american_payoff_tree(option, market_data)[0, 0]
-        return self.build_european_payoff_tree(option, market_data)[0, 0]
+            return self.build_american_payoff_tree(option, process, spot)[0, 0]
+        return self.build_european_payoff_tree(option, process, spot)[0, 0]
     
-    def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list | None = None) -> Greeks:
-        required = self._validate_required(greeks_list=greeks_list)
+    # def greeks(self, option: BaseOption, market_data: MarketDataSnapshot, greeks_list: list | None = None) -> Greeks:
+    #     required = self._validate_required(greeks_list=greeks_list)
 
-        greeks_values: Dict[str, Optional[float]] = {
-            'delta': None,
-            'gamma': None,
-            'theta': None,
-            'vega': None,
-            'rho': None
-        }
+    #     greeks_values: Dict[str, Optional[float]] = {
+    #         'delta': None,
+    #         'gamma': None,
+    #         'theta': None,
+    #         'vega': None,
+    #         'rho': None
+    #     }
 
-        if GREEKS.DELTA in required or GREEKS.GAMMA in required:
-            greeks_values['delta'], greeks_values['gamma'] = self._spot_greeks(option, market_data)
+    #     if GREEKS.DELTA in required or GREEKS.GAMMA in required:
+    #         greeks_values['delta'], greeks_values['gamma'] = self._spot_greeks(option, market_data)
 
-        if GREEKS.THETA in required:
-            greeks_values['theta'] = self._theta(option, market_data)
+    #     if GREEKS.THETA in required:
+    #         greeks_values['theta'] = self._theta(option, market_data)
 
-        if GREEKS.VEGA in required:
-            greeks_values['vega'] = self._vega(option, market_data)
+    #     if GREEKS.VEGA in required:
+    #         greeks_values['vega'] = self._vega(option, market_data)
 
-        if GREEKS.RHO in required:
-            greeks_values['rho'] = self._rho(option, market_data)
+    #     if GREEKS.RHO in required:
+    #         greeks_values['rho'] = self._rho(option, market_data)
             
-        return Greeks(**greeks_values)
+    #     return Greeks(**greeks_values)
 
-    def _rho(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
-        rate_up, rate_down = self.finite_differences_bumper.bump_rate(market_data)
+    # def _rho(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
+    #     rate_up, rate_down = self.finite_differences_bumper.bump_rate(market_data)
 
-        price_rate_up = self.price(option, rate_up)
-        price_rate_down = self.price(option, rate_down)
+    #     price_rate_up = self.price(option, rate_up)
+    #     price_rate_down = self.price(option, rate_down)
 
-        rho = self.finite_differences_greeks.rho(price_rate_up, price_rate_down)
+    #     rho = self.finite_differences_greeks.rho(price_rate_up, price_rate_down)
 
-        return rho
+    #     return rho
 
-    def _vega(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
-        volatility_up, volatility_down = self.finite_differences_bumper.bump_volatility(market_data)
+    # def _vega(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
+    #     volatility_up, volatility_down = self.finite_differences_bumper.bump_volatility(market_data)
 
-        price_vol_incr = self.price(option, volatility_up)
-        price_vol_decr = self.price(option, volatility_down)
+    #     price_vol_incr = self.price(option, volatility_up)
+    #     price_vol_decr = self.price(option, volatility_down)
 
-        vega = self.finite_differences_greeks.vega(price_vol_incr, price_vol_decr)
+    #     vega = self.finite_differences_greeks.vega(price_vol_incr, price_vol_decr)
 
-        return vega
+    #     return vega
 
-    def _theta(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
-        dt, option_short, option_long = self.finite_differences_bumper.bump_time(option)
+    # def _theta(self, option: BaseOption, market_data: MarketDataSnapshot) -> float:
+    #     dt, option_short, option_long = self.finite_differences_bumper.bump_time(option)
 
-        price_short = self.price(option_short, market_data)
-        price_long = self.price(option_long, market_data)
+    #     price_short = self.price(option_short, market_data)
+    #     price_long = self.price(option_long, market_data)
 
-        theta = self.finite_differences_greeks.theta(dt, price_short, price_long)
+    #     theta = self.finite_differences_greeks.theta(dt, price_short, price_long)
 
-        return theta
+    #     return theta
 
-    def _spot_greeks(self, option: BaseOption, market_data: MarketDataSnapshot) -> tuple[float, float]:
-        base_price = self.price(option, market_data)
+    # def _spot_greeks(self, option: BaseOption, market_data: MarketDataSnapshot) -> tuple[float, float]:
+    #     base_price = self.price(option, market_data)
 
-        market_down, market_up = self.finite_differences_bumper.bump_spot(market_data)
+    #     market_down, market_up = self.finite_differences_bumper.bump_spot(market_data)
 
-        price_up = self.price(option, market_up)
-        price_down = self.price(option, market_down)
+    #     price_up = self.price(option, market_up)
+    #     price_down = self.price(option, market_down)
 
-        delta = self.finite_differences_greeks.delta(market_data, price_up, price_down)
-        gamma = self.finite_differences_greeks.gamma(market_data, base_price, price_up, price_down)
+    #     delta = self.finite_differences_greeks.delta(market_data, price_up, price_down)
+    #     gamma = self.finite_differences_greeks.gamma(market_data, base_price, price_up, price_down)
 
-        return delta, gamma
+    #     return delta, gamma
 
 
 
