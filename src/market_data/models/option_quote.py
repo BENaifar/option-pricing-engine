@@ -9,3 +9,4 @@ class OptionQuote:
     T: float
     price: float
     type: OptionType
+    is_mid: bool = False  # True when price is a bid/ask mid, False for a lastPrice fallback

@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from datetime import date, datetime
 
@@ -45,3 +46,26 @@ def build_dividend_curve_inputs(
     times, issuance_dates, dividends = zip(*sorted_data)
 
     return list(issuance_dates), list(times), list(dividends)
+def build_dividend_yield(
+    dividend_series: pd.Series | None,
+    spot: float,
+    valuation_date: str | date | datetime
+) -> float:
+    """
+    Converts a historical yfinance dividend series into a continuous dividend yield.
+
+    Uses the trailing 12 months of cash dividends: q = ln(1 + D_12m / S).
+    Returns 0.0 for non-dividend paying tickers.
+    """
+
+    if dividend_series is None or dividend_series.empty:
+        return 0.0
+
+    valuation_date = pd.to_datetime(valuation_date).normalize()
+    index = dividend_series.index
+    index = index.tz_localize(None) if index.tz is not None else index
+
+    mask = (index > valuation_date - pd.DateOffset(years=1)) & (index <= valuation_date)
+    trailing_dividends = float(dividend_series[mask].sum())
+
+    return float(np.log1p(trailing_dividends / spot))

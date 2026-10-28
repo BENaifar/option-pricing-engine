@@ -16,3 +16,6 @@ class MarketDataSnapshot:
     dividend_yield: DividendCurve
     timestamp: str | None = str(datetime.now())
     source: str | None = None
+    quoted_spot: float | None = None  # equity feed price, before any parity adjustment
+    spot_source: str | None = None    # "quoted" or "put-call parity"
+    dividend_source: str | None = None  # "trailing dividends" or "put-call parity" (implied carry curve)

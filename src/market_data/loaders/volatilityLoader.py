@@ -1,6 +1,8 @@
 from datetime import datetime
 import pandas as pd
 
+from src.core.exceptions import MarketDataUnavailableError
+
 from src.instruments.option_types import OptionType
 from src.market_data.models.option_quote import OptionQuote
 from src.market_data.providers.base_market_data_provider import BaseMarketDataProvider
@@ -12,7 +14,7 @@ def get_option_chain_snapshot(
 ) -> list[OptionQuote]:
 
     if df is None or df.empty:
-        raise ValueError("Option chain DataFrame is empty")
+        raise MarketDataUnavailableError("Option chain is empty")
 
     valuation_date = pd.to_datetime(valuation_date)
     expiry_date = pd.to_datetime(expiry_date)
@@ -33,7 +35,8 @@ def get_option_chain_snapshot(
         bid = row.get("bid", None)
         ask = row.get("ask", None)
 
-        if pd.notna(bid) and pd.notna(ask) and bid > 0 and ask > 0:
+        is_mid = bool(pd.notna(bid) and pd.notna(ask) and bid > 0 and ask > 0)
+        if is_mid:
             price = (bid + ask) / 2.0
         else:
             price = row.get("lastPrice", None)
@@ -48,7 +51,8 @@ def get_option_chain_snapshot(
                 K=strike,
                 T=T,
                 price=float(price),
-                type=option_type
+                type=option_type,
+                is_mid=is_mid
             )
         )
 
@@ -68,6 +72,10 @@ def get_all_option_quotes(
     expiries = provider.fetch_options(ticker)
 
     for expiry in expiries:
+        # skip expiries on or before the valuation date (0DTE)
+        if pd.to_datetime(expiry) <= pd.to_datetime(valuation_date):
+            continue
+
         chain = provider.fetch_option_chain(ticker, expiry)
 
         quotes.extend(
@@ -139,3 +147,33 @@ def get_strikes(quotes: list[OptionQuote]) -> list[float]:
     strikes = sorted(set(q.K for q in quotes))
     return strikes
 
+
+def filter_quotes(
+    quotes: list[OptionQuote],
+    spot: float,
+    min_maturity: float = 7 / 365,
+    moneyness_range: tuple[float, float] = (0.7, 1.3)
+) -> list[OptionQuote]:
+    """
+    Keep the quotes that carry information about volatility:
+    out-of-the-money only (puts below spot, calls above), within a moneyness band,
+    and not too close to expiry. ITM and very short-dated quotes give unstable IVs.
+    """
+
+    result = []
+
+    for q in quotes:
+
+        if q.T < min_maturity:
+            continue
+
+        if not (moneyness_range[0] * spot <= q.K <= moneyness_range[1] * spot):
+            continue
+
+        is_otm = (q.type == "put" and q.K < spot) or (q.type == "call" and q.K >= spot)
+        if not is_otm:
+            continue
+
+        result.append(q)
+
+    return result

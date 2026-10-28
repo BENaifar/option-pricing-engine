@@ -44,7 +44,13 @@ class VolatilitySurfaceBuilder(VolatilityModel):
         return inferior, superior
     
     def get_smile_at_K(self, K, T):
-        return self.smiles[T].curve(K)
+        smile = self.smiles[T]
+        moneyness = np.log(K / smile.forward)
+
+        # flat extrapolation outside the quoted strikes (a cubic spline explodes there)
+        moneyness = np.clip(moneyness, smile.curve.x[0], smile.curve.x[-1])
+
+        return float(smile.curve(moneyness))
     
     def _ensure_time_bounds(self, T_inf, T_sup):
         """Ensure time bounds are set to valid extremes if None."""
@@ -85,7 +91,12 @@ class VolatilitySurfaceBuilder(VolatilityModel):
         if T_inf == T_sup:
             return self.get_smile_at_K(K, T)
 
-        T_inf, T_sup = self._ensure_time_bounds(T_inf, T_sup)
+        # flat extrapolation in time outside the quoted maturities
+        if T_inf is None:
+            return self.get_smile_at_K(K, self.times[0])
+        if T_sup is None:
+            return self.get_smile_at_K(K, self.times[-1])
+
         sigma_inf, sigma_sup = self._get_volatilities(K, T_inf, T_sup)
         w_inf, w_sup = self._convert_vol_to_variance(sigma_inf, sigma_sup, T_inf, T_sup)
         w_interp = self._interpolate_variance(w_inf, w_sup, T_inf, T_sup, T)

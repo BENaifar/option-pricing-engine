@@ -18,6 +18,12 @@ class VolatilitySmileBuilder(VolatilityModel):
     yield_curve: YieldCurve
     
     def __post_init__(self):
+        self.forward = ForwardPricing.forward_price(
+            self.spot,
+            self.yield_curve,
+            self.dividend_curve,
+            self.T
+        )
         self.moneyness, self.ivs = self.compute_moneyness_list()
         idx = np.argsort(self.moneyness)
         self.moneyness = self.moneyness[idx]
@@ -41,13 +47,7 @@ class VolatilitySmileBuilder(VolatilityModel):
         return self.curve(moneyness)
 
     def compute_moneyness(self, strike):
-        F = ForwardPricing.forward_price(
-            self.spot,
-            self.yield_curve,
-            self.dividend_curve,
-            self.T
-        )
-        moneyness = np.log(strike / F)
+        moneyness = np.log(strike / self.forward)
         return moneyness
 
 

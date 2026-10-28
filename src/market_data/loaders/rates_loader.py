@@ -11,6 +11,8 @@ MATURITY_MAP = {
 
 import pandas as pd
 
+from src.core.exceptions import MarketDataUnavailableError
+
 from src.market_data.models.rate import Rate
 
 def build_rate_curve(date, dfs: dict):
@@ -26,24 +28,26 @@ def build_rate_curve(date, dfs: dict):
     for name, df in dfs.items():
 
         if df is None or df.empty:
-            raise ValueError(f"{name}: DataFrame is empty")
+            raise MarketDataUnavailableError(f"{name}: rate file is empty")
 
         if name not in MATURITY_MAP:
             raise ValueError(f"Unknown maturity mapping for {name}")
 
-        if date not in df.index:
-            raise KeyError(f"{name}: no data for date {date.date()}")
+        # last available rate on or before the valuation date
+        series = pd.to_numeric(df.iloc[:, 0], errors="coerce").dropna()
+        series = series[series.index <= date]
 
-        # second column = rates
-        rate_value = df.loc[date].iloc[1]
+        if series.empty:
+            raise MarketDataUnavailableError(f"{name}: no rate on or before {date.date()}")
 
-        # convert to decimal
-        rate_value = rate_value / 100.0
+        # already in decimal (converted by the provider)
+        rate_value = float(series.iloc[-1])
 
         results.append(
             Rate(
                 time_to_maturity=MATURITY_MAP[name],
-                rate=rate_value
+                rate=rate_value,
+                as_of=series.index[-1].date()
             )
         )
 

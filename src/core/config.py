@@ -1,4 +1,9 @@
 import configparser
+from pathlib import Path
+
+# resolve config.ini from the project root, not from the current working directory
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = PROJECT_ROOT / "config.ini"
 
 def create_config():
     config = configparser.ConfigParser()
@@ -17,14 +22,14 @@ def create_config():
     }
 
     # Write the configuration to a file
-    with open('config.ini', 'w') as configfile:
+    with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
 
 def read_config(key: str, value: str):
     config = configparser.ConfigParser()
 
     # Read the configuration file
-    config.read('config.ini')
+    config.read(CONFIG_PATH)
 
     # Access values from the configuration file
     result = config.get(key, value)
@@ -35,7 +40,7 @@ def read_config_float(key: str, value: str):
     config = configparser.ConfigParser()
 
     # Read the configuration file
-    config.read('config.ini')
+    config.read(CONFIG_PATH)
 
     # Access values from the configuration file
     result = config.getfloat(key, value)

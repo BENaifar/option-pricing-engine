@@ -5,7 +5,8 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
-from src.core.config import read_config
+from src.core.config import PROJECT_ROOT, read_config
+from src.core.exceptions import MarketDataUnavailableError
 from src.market_data.providers.base_market_data_provider import BaseMarketDataProvider
 
 
@@ -19,8 +20,17 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
             self._ticker[ticker] = yf.Ticker(ticker)
         return self._ticker[ticker]
 
+    @staticmethod
+    def _request(description: str, call):
+        try:
+            return call()
+        except Exception as error:
+            raise MarketDataUnavailableError(f"Yahoo Finance request failed ({description}): {error}") from error
+
     def fetch_rate(self) -> dict:
-        path = read_config("paths", "raw_data_rates")
+        path = PROJECT_ROOT / read_config("paths", "raw_data_rates")
+        if not path.is_dir():
+            raise MarketDataUnavailableError(f"Rate files not found in {path}")
 
         dfs = {}
 
@@ -31,14 +41,13 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
 
                 maturity = file[0:-4]  # e.g. DGS10
 
-                date = pd.to_datetime(data["date"]).iloc[-1].normalize()
-
-                rate = float(pd.to_numeric(data.iloc[-1, -1]) / 100)
+                # FRED files: DATE, <maturity>; missing values are "."
+                rates = pd.to_numeric(data.iloc[:, -1], errors="coerce") / 100
 
                 df = pd.DataFrame(
-                    {maturity: [rate]},
-                    index=[date]
-                )
+                    {maturity: rates.values},
+                    index=pd.to_datetime(data.iloc[:, 0]).dt.normalize()
+                ).dropna()
 
                 dfs[maturity] = df
 
@@ -52,28 +61,28 @@ class YahooMarketDataProvider(BaseMarketDataProvider):
         interval: str = "1d"
     ) -> pd.DataFrame | None:
         t = self._get_ticker(ticker)
-        df = t.history(
+        df = self._request("price history", lambda: t.history(
             start=start,
             end=end,
             interval=interval,
             auto_adjust=False,
             actions=False
-        )
+        ))
         return df if not df.empty else None
 
     def fetch_dividend(self, ticker: str) -> pd.Series | None:
         t = self._get_ticker(ticker)
-        div = t.dividends
+        div = self._request("dividends", lambda: t.dividends)
         return div if not div.empty else None
 
     def fetch_options(self, ticker: str) -> list[str]:
         t = self._get_ticker(ticker)
-        return list(t.options)
+        return list(self._request("option expiries", lambda: t.options))
 
     def fetch_option_chain(self, ticker: str, date: str | datetime) -> pd.DataFrame:
         t = self._get_ticker(ticker)
         expiry = str(date)
-        chain = t.option_chain(expiry)
+        chain = self._request(f"option chain {expiry}", lambda: t.option_chain(expiry))
 
         calls = chain.calls.copy()
         puts = chain.puts.copy()
