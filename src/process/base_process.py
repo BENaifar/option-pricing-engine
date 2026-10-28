@@ -6,11 +6,15 @@ from src.market_data.models.volatility_model import VolatilityModel
 from src.models.base_model import BaseModel
 
 
-class StochasticProcess(ABC):        
+class StochasticProcess(ABC):   
     @abstractmethod
     def drift(self, S: float, t: float) -> float:
         pass
     
     @abstractmethod
     def diffusion(self, S: float, t: float, K: float) -> float:
+        pass
+
+    @abstractmethod
+    def discount_factor(self, t: float):
         pass

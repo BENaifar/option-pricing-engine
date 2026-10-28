@@ -1,3 +1,5 @@
+import numpy as np
+
 from src.models.base_model import BaseModel
 from src.models.black_scholes_model import BlackScholesModel
 from src.process.base_process import StochasticProcess
@@ -16,5 +18,8 @@ class GBMProcess(StochasticProcess):
     
     def diffusion(self, S: float, t: float, K: float) -> float:
         return S * self.sigma
+    
+    def discount_factor(self, t: float):
+        return np.exp(-self.r * t)
 
     

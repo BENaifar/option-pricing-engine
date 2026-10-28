@@ -9,6 +9,7 @@ from src.greeks.finite_differences_greeks import FiniteDifferencesGreeks
 from src.greeks.greeks_bumps_config import GreeksBumpsConfig
 from src.market_data.market_bumper import MarketBumper
 from src.process.base_process import StochasticProcess
+from src.schemes.base_scheme import BaseScheme
 from src.schemes.binomial_tree_scheme import BinomialTreeScheme
 
 @dataclass
@@ -20,6 +21,9 @@ class BinomialTree(BasePricer):
 
 
     def __post_init__(self):
+        if not isinstance(self.scheme, BaseScheme):
+            raise TypeError("Not a scheme")
+        
         if not isinstance(self.steps, (int, np.integer)) or self.steps <= 0:
             raise ValueError("Number of steps must be a positive integer.")
         
@@ -33,8 +37,10 @@ class BinomialTree(BasePricer):
         tree = np.zeros((self.steps + 1, self.steps + 1))
         dt = option.maturity / self.steps
 
+        _, u, d = self.scheme.step(spot, option.maturity, dt, option.strike, process)
+
         for i in range(self.steps + 1): 
-            _, u, d = self.scheme.step(spot, dt * i, dt, option.strike, process)
+            
             j = np.arange(i + 1)
             tree[j, i] = spot * (u ** (i - j)) * (d ** j)
         
@@ -46,11 +52,11 @@ class BinomialTree(BasePricer):
         option_payoffs = np.zeros((self.steps + 1, self.steps + 1))
         option_payoffs[:, -1] = option.payoff(tree[:, -1])
 
+        p, _, _ = self.scheme.step(spot, option.maturity, dt, option.strike, process)
+
         for i in range(self.steps, 0, -1):
             j = np.arange(i)
-            p, _, _ = self.scheme.step(spot, dt * i, dt, option.strike, process)
-            r = process.diffusion(spot, dt * i, option.strike) / spot
-            option_payoffs[j, i - 1] = np.exp(-r * dt) * (p * option_payoffs[j, i] + (1 - p) * option_payoffs[j + 1, i])
+            option_payoffs[j, i - 1] = process.discount_factor(dt) * (p * option_payoffs[j, i] + (1 - p) * option_payoffs[j + 1, i])
         
         return option_payoffs
     
@@ -64,9 +70,8 @@ class BinomialTree(BasePricer):
         for i in range(self.steps, 0, -1):
             j = np.arange(i)
             p, _, _ = self.scheme.step(spot, dt * i, dt, option.strike, process)
-            r = process.diffusion(spot, dt * i, option.strike) / spot
 
-            new_payoff = np.exp(-r * dt) * (p * option_payoffs[j, i] + (1 - p) * option_payoffs[j + 1, i])
+            new_payoff = process.discount_factor(dt) * (p * option_payoffs[j, i] + (1 - p) * option_payoffs[j + 1, i])
             option_payoffs[j, i - 1] = np.maximum(option.payoff(tree[j , i - 1]), new_payoff)
         
         return option_payoffs

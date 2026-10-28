@@ -8,16 +8,21 @@ from src.greeks.greeks_bumps_config import GreeksBumpsConfig
 from src.instruments.european_option import EuropeanOption
 from src.instruments.american_option import AmericanOption
 from src.instruments.option_types import OptionType
+from src.market_data.curves.dividend_curve import DividendCurve
+from src.market_data.curves.yield_curve import YieldCurve
 from src.market_data.market_bumper import MarketBumper
 from src.market_data.market_data_snapshot import MarketDataSnapshot
-from src.market_data.providers.yahoo_market_data_provider import YahooMarketDataProvider
+from src.market_data.models.flat_volatility import FlatVolatility
 from src.market_data.services.market_data_service import MarketDataService
-from src.market_data.static_market_data_snapshot import MarketData
 from src.models.black_scholes_model import BlackScholesModel
+from src.pricers.closed_black_scholes import ClosedBlackScholesPricer
+from src.process.gbm_process import GBMProcess
+from src.schemes.binomial_tree_scheme import BinomialTreeScheme
 from src.schemes.euler_scheme import EulerScheme
 from src.pricers.binomial_tree import BinomialTree
 from src.pricers.black_scholes import BlackScholesPricer
 from src.pricers.monte_carlo import MonteCarloPricer
+from src.schemes.exact_gbm_scheme import ExactGBMScheme
 
 @pytest.fixture
 def valuation_date():
@@ -25,12 +30,9 @@ def valuation_date():
 
 
 @pytest.fixture
-def provider():
-    return YahooMarketDataProvider()
-
-
-@pytest.fixture
-def service(provider, valuation_date):
+def service(valuation_date):
+    from src.market_data.providers.yahoo_market_data_provider import YahooMarketDataProvider
+    provider = YahooMarketDataProvider()
     return MarketDataService(
         provider=provider,
         ticker="AAPL",
@@ -39,11 +41,12 @@ def service(provider, valuation_date):
 
 @pytest.fixture
 def standard_market():
-    return MarketData(
-        spot=100,
-        rate=0.05,
-        sigma=0.2,
-        dividend_yield=0
+    return MarketDataSnapshot(
+        ticker="test",
+        spot=100.0,
+        rate=YieldCurve(0.05),
+        sigma=FlatVolatility(0.2),
+        dividend_yield=DividendCurve(issuance_dates=None, times=None, dividends=0.0)
     )
 
 # eur call: 9.229898019753968
@@ -52,11 +55,12 @@ def standard_market():
 # amr put: 6.663466131715539
 @pytest.fixture
 def standard_market_with_dividend():
-    return MarketData(
-        spot=100,
-        rate=0.05,
-        sigma=0.2,
-        dividend_yield=0.02
+    return MarketDataSnapshot(
+        ticker="test",
+        spot=100.0,
+        rate=YieldCurve(0.05),
+        sigma=FlatVolatility(0.2),
+        dividend_yield=DividendCurve(issuance_dates=None, times=None, dividends=0.02)
     )
 
 @pytest.fixture
@@ -91,14 +95,19 @@ def standard_american_put():
         option_type=OptionType.PUT
     ) 
 
+
+
 @pytest.fixture
-def standard_model():
-    return BlackScholesModel()
+def standard_model(standard_market):
+    return BlackScholesModel(standard_market, strike=100, maturity=1.0)
 
 @pytest.fixture
 def standard_euler_scheme():
     return EulerScheme()
 
+@pytest.fixture
+def standard_exact_gbm_scheme():
+    return ExactGBMScheme()
 
 @pytest.fixture
 def standard_greeks_bumps_config():
@@ -117,19 +126,18 @@ def market_bumper(standard_greeks_bumps_config):
 
 @pytest.fixture
 def black_scholes_pricer():
-    return BlackScholesPricer()
+    return ClosedBlackScholesPricer()
 
 
 @pytest.fixture
 def binomial_tree_pricer():
-    return BinomialTree()
+    return BinomialTree(scheme=BinomialTreeScheme())
 
 
 @pytest.fixture
-def monte_carlo_pricer(standard_model, standard_euler_scheme):
+def monte_carlo_pricer(standard_exact_gbm_scheme):
     return MonteCarloPricer(
-        model=standard_model,
-        scheme=standard_euler_scheme,
+        scheme=standard_exact_gbm_scheme,
         paths=100_000,
         n_steps=128,
         seed=42,
